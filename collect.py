@@ -138,15 +138,22 @@ def get_puuid(riot_id, mass_region, api_key):
     return data["puuid"]
 
 
-def get_match_ids(puuid, mass_region, api_key, count, queue=420):
-    """queue=420 = Ranked Solo/Duo. On pagine par paquets de 100 (max API)."""
+def get_match_ids(puuid, mass_region, api_key, count, queue=420, start_time=None):
+    """queue=420 = Ranked Solo/Duo. On pagine par paquets de 100 (max API).
+
+    start_time : timestamp Unix en SECONDES (pas millisecondes) — l'API Riot
+    attend des secondes. Filtrage côté serveur : seules les games postérieures
+    à cette date sont renvoyées.
+    """
     ids = []
     start = 0
     while len(ids) < count:
         batch = min(100, count - len(ids))
         url = f"https://{mass_region}.api.riotgames.com/lol/match/v5/matches/by-puuid/{puuid}/ids"
-        data = riot_get(url, api_key, params={"start": start, "count": batch,
-                                              "queue": queue, "type": "ranked"})
+        params = {"start": start, "count": batch, "queue": queue, "type": "ranked"}
+        if start_time is not None:
+            params["startTime"] = start_time  # API Riot attend des secondes Unix
+        data = riot_get(url, api_key, params=params)
         if not data:
             break
         ids.extend(data)
@@ -322,6 +329,7 @@ def extract_row(match, my_puuid, platform, api_key, cache, champ_pool):
         "match_id":   match["metadata"]["matchId"],
         "game_start": info.get("gameStartTimestamp", info.get("gameCreation")),
         "duration_s": info.get("gameDuration"),
+        "lol_patch":  info.get("gameVersion", "unknown"),
         "win":        int(me["win"]),
         # toi
         "my_champ":  me["championName"],
@@ -365,6 +373,8 @@ def main():
     ap.add_argument("--region", required=True, help="mass region: americas|asia|europe|sea")
     ap.add_argument("--platform", required=True, help="platform: euw1|na1|kr|br1|…")
     ap.add_argument("--count", type=int, default=100, help="nombre de games à récupérer")
+    ap.add_argument("--days", type=int, default=None,
+                    help="Ne garder que les games des N derniers jours (réduit le drift rang/game)")
     ap.add_argument("--cache", default="riot_cache", help="dossier de cache")
     ap.add_argument("--out", default="games.csv", help="CSV de sortie")
     args = ap.parse_args()
@@ -380,8 +390,22 @@ def main():
     puuid = get_puuid(args.riot_id, args.region, api_key)
     print(f"  PUUID : {puuid[:24]}…")
 
+    # ── Fenêtre temporelle (--days) ──────────────────────────────────────────
+    # ⚠ Conversion explicite : time.time() retourne des SECONDES,
+    #   mais game_start dans les rows Riot est en MILLISECONDES.
+    #   → start_time_api (pour l'API) est en secondes
+    #   → cutoff_ms (pour filtrer les rows) est en millisecondes
+    cutoff_ms = None
+    start_time_api = None
+    if args.days:
+        start_time_api = int(time.time()) - args.days * 86400   # secondes Unix
+        cutoff_ms      = start_time_api * 1000                  # millisecondes, pour filtrer les rows
+        print(f"→ Fenêtre temporelle : {args.days} jour(s) — games depuis le "
+              f"{time.strftime('%Y-%m-%d', time.localtime(start_time_api))}")
+
     print(f"→ Récupération de {args.count} match IDs (ranked solo)…")
-    match_ids = get_match_ids(puuid, args.region, api_key, args.count)
+    match_ids = get_match_ids(puuid, args.region, api_key, args.count,
+                               start_time=start_time_api)
     print(f"  {len(match_ids)} games trouvées.")
 
     import csv
@@ -395,6 +419,15 @@ def main():
         row = extract_row(match, puuid, args.platform, api_key, cache, champ_pool)
         if row:
             rows.append(row)
+
+    # ── Filtre temporel post-cache ───────────────────────────────────────────
+    # Appliqué APRÈS la boucle : certaines rows viennent du cache et pourraient
+    # être hors fenêtre même si l'API les a filtrées (cache peuplé avant --days).
+    if cutoff_ms is not None:
+        total_before = len(rows)
+        rows = [r for r in rows if r.get("game_start", 0) >= cutoff_ms]
+        print(f"  Fenêtre {args.days}j : {len(rows)}/{total_before} games retenues "
+              f"(rang actuel = proxy valide sur cette fenêtre)")
 
     if not rows:
         print("Aucune game ranked solo exploitable. Vérifie le Riot ID / la file.")

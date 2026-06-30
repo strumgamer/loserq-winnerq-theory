@@ -10,9 +10,13 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 from math import sqrt
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
+import re as _re
 
 from collect import (
     Cache,
@@ -29,6 +33,10 @@ from anonymize import find_episodes, wr_unfav, slope_by_carry, mean_team_diff
 # ─────────────────────────────────────────────────────────────────────────────
 
 app = FastAPI(title="LoserQ / WinnerQ API", version="1.0.0")
+
+limiter = Limiter(key_func=get_remote_address)
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 app.add_middleware(
     CORSMiddleware,
@@ -53,6 +61,8 @@ _cache = Cache(_CACHE_DIR)
 
 MAX_COUNT = 200
 
+_RIOT_ID_RE = _re.compile(r"^[^#]{1,50}#[A-Za-z0-9]{2,5}$")
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Schémas
@@ -63,6 +73,17 @@ class AnalyzeRequest(BaseModel):
     region: str = "europe"
     platform: str = "euw1"
     count: int = Field(default=100, ge=1, le=MAX_COUNT)
+
+    @field_validator("riot_id")
+    @classmethod
+    def validate_riot_id(cls, v: str) -> str:
+        normalized = v.strip()
+        if "#" in normalized:
+            parts = normalized.split("#", 1)
+            normalized = parts[0].rstrip() + "#" + parts[1].lstrip()
+        if not _RIOT_ID_RE.match(normalized):
+            raise ValueError("Format invalide")
+        return normalized
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -122,7 +143,8 @@ def health():
 
 
 @app.post("/api/analyze")
-def analyze(req: AnalyzeRequest):
+@limiter.limit("2/minute")
+def analyze(req: AnalyzeRequest, request: Request):
     api_key = _api_key()
 
     # Normalisation défensive : supprime les espaces autour du '#'
@@ -152,7 +174,7 @@ def analyze(req: AnalyzeRequest):
     except HTTPException:
         raise
     except Exception as exc:
-        raise HTTPException(status_code=502, detail=f"Erreur Riot API: {exc}") from exc
+        raise HTTPException(status_code=502, detail="Erreur lors de la récupération des données") from exc
 
     if not account_data:
         raise HTTPException(
@@ -164,7 +186,7 @@ def analyze(req: AnalyzeRequest):
     try:
         match_ids = get_match_ids(puuid, req.region, api_key, count)
     except Exception as exc:
-        raise HTTPException(status_code=502, detail=f"Erreur Riot API: {exc}") from exc
+        raise HTTPException(status_code=502, detail="Erreur lors de la récupération des données") from exc
 
     if not match_ids:
         raise HTTPException(
@@ -183,7 +205,7 @@ def analyze(req: AnalyzeRequest):
             if row:
                 raw_rows.append(row)
     except Exception as exc:
-        raise HTTPException(status_code=502, detail=f"Erreur Riot API: {exc}") from exc
+        raise HTTPException(status_code=502, detail="Erreur lors de la récupération des données") from exc
 
     if not raw_rows:
         raise HTTPException(

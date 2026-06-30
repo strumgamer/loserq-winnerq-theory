@@ -173,6 +173,95 @@ def sign_test(betas):
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# WILD CLUSTER BOOTSTRAP-t (Cameron-Gelbach-Miller)
+# ─────────────────────────────────────────────────────────────────────────────
+
+def wild_cluster_bootstrap_t(xs_w, ys_w, gs_w, beta_obs, se_obs,
+                              n_boot=9999, seed=2026, max_lag=10):
+    """
+    Wild cluster bootstrap-t (Cameron-Gelbach-Miller).
+    Bootstrap restreint sous H0 (pente=0) avec statistique-t.
+
+    Paramètres
+    ----------
+    xs_w, ys_w, gs_w : données demeaned within-player
+    beta_obs : slope observée (FE poolé)
+    se_obs   : SE clustered-HAC observé (de linregress_nw_panel)
+    n_boot   : nombre d'itérations
+    seed     : seed Rademacher
+
+    Retourne
+    --------
+    dict avec p_boot (one-tailed H1: pente < 0), n_boot, n_clusters
+    """
+    import random as _rng
+
+    n = len(xs_w)
+    clusters = sorted(set(gs_w))
+    n_clusters = len(clusters)
+
+    if n_clusters < 10:
+        print(f"  ⚠ Bootstrap peu fiable : {n_clusters} clusters "
+              f"(2^{n_clusters} = {2**n_clusters} configurations seulement)")
+
+    # t observée
+    t_obs = beta_obs / se_obs if se_obs > 0 else 0.0
+
+    # Résidus restreints sous H0 (pente = 0)
+    # H0 : y_demeaned ~ mean(y_demeaned) + epsilon
+    mean_y = sum(ys_w) / n
+    e_r = [y - mean_y for y in ys_w]  # résidus restreints
+
+    # Précalcul : x demeaned (x est fixe entre itérations)
+    mean_x = sum(xs_w) / n
+    x_dm = [x - mean_x for x in xs_w]
+    sxx = sum(xi * xi for xi in x_dm)
+    if sxx < 1e-12:
+        return {"p_boot": None, "n_boot": n_boot, "n_clusters": n_clusters}
+
+    # Map cluster → indices
+    cluster_idx = {c: [] for c in clusters}
+    for i, g in enumerate(gs_w):
+        cluster_idx[g].append(i)
+
+    rng = _rng.Random(seed)
+    t_boots = []
+
+    for _ in range(n_boot):
+        # Tirer v_i ∈ {-1, +1} par cluster (Rademacher)
+        signs = {c: (1 if rng.random() > 0.5 else -1) for c in clusters}
+
+        # Construire y_b = mean_y + e_r * signe du cluster
+        y_b = [mean_y + e_r[i] * signs[gs_w[i]] for i in range(n)]
+
+        # slope_b via formule fermée O(n) (x fixe, seul y change)
+        mean_yb = sum(y_b) / n
+        slope_b = sum(x_dm[i] * (y_b[i] - mean_yb) for i in range(n)) / sxx
+
+        # ⚠ se_b doit être clustered-HAC (même estimateur que se_obs)
+        reg_b = linregress_nw_panel(xs_w, y_b, gs_w, max_lag=max_lag)
+        if reg_b is None or reg_b["se_nw"] <= 0:
+            continue
+        se_b = reg_b["se_nw"]
+
+        t_b = slope_b / se_b
+        t_boots.append(t_b)
+
+    if not t_boots:
+        return {"p_boot": None, "n_boot": 0, "n_clusters": n_clusters}
+
+    # p-value one-tailed H1: pente < 0
+    p_boot = sum(1 for t in t_boots if t <= t_obs) / len(t_boots)
+
+    return {
+        "p_boot": round(p_boot, 4),
+        "n_boot": len(t_boots),
+        "n_clusters": n_clusters,
+        "t_obs": round(t_obs, 4),
+    }
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # WITHIN-CENTERING (pooling inter-joueurs valide)
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -289,6 +378,30 @@ def main():
             print(f"  [SE calculées avec clustered-HAC panel NW — gammas intra-joueur uniquement]")
     else:
         print(f"  Données insuffisantes pour within-centering ({len(xs_w)} paires).")
+
+    # ── Wild cluster bootstrap (robustness check) ─────────────────────────
+    if reg_w is not None and xs_w:
+        import time as _time
+        t0 = _time.time()
+        boot = wild_cluster_bootstrap_t(
+            xs_w, ys_w, gs_w,
+            beta_obs=reg_w["slope"],
+            se_obs=reg_w["se_nw"],
+            n_boot=9999,
+            seed=2026,
+        )
+        elapsed = _time.time() - t0
+        if boot["p_boot"] is not None:
+            print(f"\n  [Bootstrap CGM — robustness check]")
+            print(f"  n_boot={boot['n_boot']}, n_clusters={boot['n_clusters']}, "
+                  f"t_obs={boot['t_obs']:.4f}")
+            print(f"  p_bootstrap (one-tailed) = {boot['p_boot']:.4f}  "
+                  f"[temps: {elapsed:.1f}s]")
+            if elapsed > 120:
+                print(f"  ⚠ Lent ({elapsed:.0f}s) — réduire n_boot à 1999 si nécessaire "
+                      f"(pré-enregistrer la valeur choisie)")
+        else:
+            print("  [Bootstrap CGM : échec de calcul]")
 
     # ══ TESTS DE ROBUSTESSE (secondaires) ════════════════════════════════════
     print(f"\n{SEP}")

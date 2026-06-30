@@ -145,6 +145,57 @@ def attenuation_bounds(
     print("       Source drift temporel : les rangs historiques ne sont pas disponibles.")
 
 
+def sensitivity_table(noise_ratios=(0.20, 0.30, 0.50, 0.70)):
+    """
+    Table de sensibilité : comment les bornes d'atténuation varient selon noise_ratio.
+    Montre que les conclusions sont robustes (ou non) à l'hypothèse sur le bruit du proxy.
+    """
+    import math
+
+    print("\n" + "=" * 70)
+    print("SENSIBILITÉ AU BRUIT DU PROXY (noise_ratio)")
+    print("=" * 70)
+    print(f"{'noise_ratio':>12} | {'Inflation SE':>12} | {'Puissance N=3000':>16} | {'Puissance N=3000':>16} | Note")
+    print(f"{'':>12} | {'':>12} | {'pente=-60':>16} | {'pente=-30':>16} |")
+    print("-" * 70)
+
+    sigma_x = 0.289
+    sigma_y_proxy = 150.0
+
+    for nr in noise_ratios:
+        inflation = math.sqrt(1 + nr ** 2)
+
+        def power_at(slope, n):
+            r_clean = slope * sigma_x / sigma_y_proxy
+            r_eff = r_clean / inflation
+            r2 = r_eff ** 2
+            if r2 >= 1.0:
+                return 1.0
+            delta = abs(r_eff) * math.sqrt(n - 2) / math.sqrt(max(1 - r2, 1e-9))
+            z_alpha = 1.6449
+            return 0.5 * (1 + math.erf((delta - z_alpha) / math.sqrt(2)))
+
+        p60 = power_at(-60, 3000)
+        p30 = power_at(-30, 3000)
+
+        note = ""
+        if nr >= 0.70:
+            note = "⚠ proxy quasi-inutile"
+        elif nr >= 0.50:
+            note = "proxy médiocre"
+        elif nr <= 0.20:
+            note = "proxy excellent"
+        else:
+            note = "hypothèse de référence"
+
+        print(f"{nr:>12.2f} | {inflation:>12.3f} | {p60:>15.1%} | {p30:>15.1%} | {note}")
+
+    print()
+    print("Note : table subordonnée à l'estimation empirique du bruit.")
+    print("       Recommandé : corréler rang public × winrate intra-game sur sous-échantillon.")
+    print("       noise_ratio=0.70 → effet indétectable à tout N réaliste (inflation ×1.22).")
+
+
 if __name__ == "__main__":
     SEP = "─" * 56
     print(f"\n{SEP}")
@@ -242,3 +293,4 @@ if __name__ == "__main__":
     print("  → résultat négatif reste ambigu ; résultat positif serait conservateur")
 
     attenuation_bounds()
+    sensitivity_table()
