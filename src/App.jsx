@@ -1613,8 +1613,9 @@ function SimulatorPage() {
 // ─────────────────────────────────────────────────────────────────────────────
 
 function ResultatsPage() {
-  const { players } = realData;
-  const phase = players && players.length >= 10 ? "confirmatoire" : "pilote";
+  const { players, n_total } = realData;
+  const n = players ? players.length : 0;
+  const phase = n >= 10 ? "confirmatoire" : "pilote";
 
   return (
     <div style={{ padding: "40px 20px" }}>
@@ -1629,9 +1630,11 @@ function ResultatsPage() {
           </h2>
           <p style={{ fontSize: 13, color: C.mute, lineHeight: 1.6, maxWidth: 560, margin: 0 }}>
             Le test <code style={{ color: C.target, fontFamily: MONO }}>team_diff ~ recent_wr</code>{" "}
-            appliqué sur de vraies games via l'API Riot.
-            Phase actuelle : <b style={{ color: C.text }}>{phase}</b>
-            {phase === "pilote" && " · phase confirmatoire en cours (48 joueurs échantillonnés aléatoirement)."}.
+            appliqué sur de vraies games via l'API Riot.{" "}
+            <b style={{ color: C.text }}>{n} joueurs · {n_total?.toLocaleString("fr-FR")} games</b>
+            {phase === "pilote"
+              ? " · collecte confirmatoire en cours (cible : 48 joueurs)."
+              : " · phase confirmatoire active."}
           </p>
         </div>
 
