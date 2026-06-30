@@ -25,8 +25,6 @@ import sys
 import time
 from pathlib import Path
 
-import requests as _requests
-
 from collect import riot_get, RateLimiter, Cache
 
 # ─── Constantes ───────────────────────────────────────────────────────────────
@@ -50,13 +48,10 @@ PILOT_IDS = {
 # ─── Key guard ────────────────────────────────────────────────────────────────
 
 def check_key_valid(api_key):
-    """Vérifie que la clé n'a pas expiré. Retourne True si OK, False si 401/403."""
+    """Vérifie que la clé n'a pas expiré via riot_get() (même mécanisme que collect.py)."""
     url = f"https://{PLATFORM}.api.riotgames.com/lol/status/v4/platform-data"
-    try:
-        r = _requests.get(url, headers={"X-Riot-Token": api_key}, timeout=10)
-        return r.status_code == 200
-    except Exception:
-        return False
+    result = riot_get(url, api_key)
+    return result is not None
 
 
 def assert_key_valid(api_key, context=""):
