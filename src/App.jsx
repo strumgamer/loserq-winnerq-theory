@@ -2,6 +2,7 @@ import React, { useState, useMemo } from "react";
 import { Routes, Route, Link, useLocation } from "react-router-dom";
 import realData from "./results/data.json";
 import Analysis from "./Analysis.jsx";
+import logoSvg from "./logo.svg";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // LOSER QUEUE — BANC D'ESSAI STATISTIQUE
@@ -1073,28 +1074,15 @@ function NavBar() {
         height: 50, padding: "0 20px",
       }}>
         <Link to="/" style={{
-          display: "flex", alignItems: "center", gap: 6,
+          display: "flex", alignItems: "center",
           textDecoration: "none", marginRight: 14, flexShrink: 0,
           userSelect: "none",
         }}>
-          <span style={{
-            display: "inline-flex", alignItems: "center",
-            background: C.text, borderRadius: 6,
-            padding: "2px 7px 2px 6px", gap: 1,
-          }}>
-            <span style={{ fontSize: 11, fontWeight: 800, fontFamily: MONO, color: C.rig, letterSpacing: "0.02em" }}>L</span>
-            <span style={{ fontSize: 11, fontWeight: 800, fontFamily: MONO, color: "#FDFCFA", letterSpacing: "0.02em" }}>Q</span>
-            <span style={{ fontSize: 11, fontWeight: 400, fontFamily: MONO, color: "#FDFCFA44", margin: "0 2px" }}>/</span>
-            <span style={{ fontSize: 11, fontWeight: 800, fontFamily: MONO, color: C.fair, letterSpacing: "0.02em" }}>W</span>
-            <span style={{ fontSize: 11, fontWeight: 800, fontFamily: MONO, color: "#FDFCFA", letterSpacing: "0.02em" }}>Q</span>
-          </span>
-          <span style={{
-            fontSize: 10, fontWeight: 500, fontFamily: MONO,
-            color: C.mute, letterSpacing: "0.06em",
-            display: "none",
-          }}
-            className="nav-wordmark-sub"
-          >THEORY</span>
+          <img
+            src={logoSvg}
+            alt="LQ/WQ logo"
+            style={{ height: 32, width: 32 }}
+          />
         </Link>
         {NAV.map(({ to, label }) => {
           const active = loc.pathname === to;
