@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from "react";
+import { Routes, Route, Link, useLocation } from "react-router-dom";
 import realData from "./results/data.json";
 import Analysis from "./Analysis.jsx";
 
@@ -1284,21 +1285,145 @@ function MethodologyBanner() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// APP
+// NAV
 // ─────────────────────────────────────────────────────────────────────────────
 
-export default function App() {
-  const [showAnalysis, setShowAnalysis] = useState(false);
-  const [engine, setEngine]           = useState("rig");
-  const [heroMMR, setHeroMMR]         = useState(2400);
-  const [poolSpread, setPoolSpread]   = useState(180);
+function NavBar() {
+  const loc = useLocation();
+  const NAV = [
+    { to: "/",           label: "La Théorie"  },
+    { to: "/simulateur", label: "Simulateur"  },
+    { to: "/resultats",  label: "Résultats"   },
+  ];
+  return (
+    <nav style={{
+      position: "sticky", top: 0, zIndex: 100,
+      background: "rgba(8,8,14,0.92)",
+      backdropFilter: "blur(14px)",
+      borderBottom: `1px solid ${C.dim}`,
+    }}>
+      <div style={{
+        maxWidth: 780, margin: "0 auto",
+        display: "flex", alignItems: "center", gap: 2,
+        height: 50, padding: "0 20px",
+      }}>
+        <Link to="/" style={{
+          fontSize: 11, fontWeight: 700, fontFamily: MONO,
+          color: C.mute, letterSpacing: "0.14em",
+          textDecoration: "none", marginRight: 14, flexShrink: 0,
+        }}>LQ/WQ</Link>
+        {NAV.map(({ to, label }) => {
+          const active = loc.pathname === to;
+          return (
+            <Link key={to} to={to} style={{
+              padding: "5px 13px", borderRadius: 7,
+              fontSize: 13, fontWeight: active ? 600 : 400,
+              color: active ? C.text : C.mute,
+              background: active ? C.card : "transparent",
+              textDecoration: "none",
+              border: `1px solid ${active ? C.dim : "transparent"}`,
+              transition: "all .1s", whiteSpace: "nowrap",
+            }}>{label}</Link>
+          );
+        })}
+      </div>
+    </nav>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PAGE — THÉORIE (/)
+// ─────────────────────────────────────────────────────────────────────────────
+
+function TheoriePage() {
+  const [seed, setSeed] = useState(7);
+  const BASE = { heroMMR: 2400, poolSpread: 180, rigStrength: 220, carryScore: 0.65, games: 300 };
+
+  return (
+    <div style={{ padding: "40px 20px" }}>
+      <div style={{ maxWidth: 740, margin: "0 auto" }}>
+
+        <div style={{ marginBottom: 36 }}>
+          <div style={{ fontSize: 10, letterSpacing: "0.15em", color: C.mute, fontFamily: MONO, marginBottom: 10 }}>
+            MATCHMAKING · BANC D'ESSAI STATISTIQUE
+          </div>
+          <h1 style={{ fontSize: 32, fontWeight: 800, margin: "0 0 10px", lineHeight: 1.1, letterSpacing: "-0.5px" }}>
+            La loser queue existe-t-elle ?
+          </h1>
+          <p style={{ color: C.mute, fontSize: 14, lineHeight: 1.65, maxWidth: 520, margin: 0 }}>
+            Simule les deux hypothèses, teste ton intuition, puis vois ce que les{" "}
+            <Link to="/resultats" style={{ color: C.text, textDecoration: "underline", textDecorationColor: C.dim }}>
+              vraies données
+            </Link>{" "}
+            révèlent. Suis les étapes dans l'ordre.
+          </p>
+        </div>
+
+        {/* 01 */}
+        <Step n={1} title="Le paradoxe"
+          sub="Un matchmaking honnête et une loser queue produisent des courbes de WR identiques à l'œil" />
+        <ParadoxSection seed={seed} {...BASE} />
+        <Callout color={C.fair}>
+          Les deux win-rates convergent vers 50%, les séries de défaites ont la même longueur.{" "}
+          <b>Impossible de dire laquelle est truquée</b> — c'est tout le piège.
+          Le ressenti n'est pas un test.
+        </Callout>
+
+        {/* 02 */}
+        <Step n={2} title="Prouve-le toi-même"
+          sub="50 games simulées, moteur secret — peux-tu le deviner ?" />
+        <BlindTest heroMMR={BASE.heroMMR} poolSpread={BASE.poolSpread} carryScore={BASE.carryScore} />
+        <Callout color={C.target}>
+          La plupart des joueurs stagnent autour de{" "}
+          <b>50% de bonnes réponses</b> — exactement le hasard pur.
+          Il faut un test différent, pas une intuition.
+        </Callout>
+
+        {/* 03 */}
+        <Step n={3} title="Le test décisif"
+          sub="Ce que les courbes cachent — un nuage de points révèle le signal" />
+        <AlwaysOnScatterComparison {...BASE} seed={seed} />
+        <Callout color={C.rig}>
+          <b>Moteur truqué :</b> pente nettement négative — quand le joueur est en forme,
+          l'écart d'équipe se creuse systématiquement.{" "}
+          <b>Moteur honnête :</b> pente ≈ 0, nuage plat. C'est ce test —{" "}
+          <code style={{ color: C.target, fontFamily: MONO }}>team_diff ~ recent_wr</code>
+          {" "}— appliqué sur les{" "}
+          <Link to="/resultats" style={{ color: C.target }}>vraies données →</Link>
+        </Callout>
+
+        <div style={{ marginTop: 24, display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+          <button onClick={() => setSeed(s => s + 1)} style={{
+            padding: "8px 16px", background: "transparent", color: C.mute,
+            border: `1px solid ${C.dim}`, borderRadius: 7, fontSize: 12,
+            cursor: "pointer", fontFamily: MONO,
+          }}>⟳ Nouvelle seed #{seed + 1}</button>
+          <Link to="/simulateur" style={{
+            padding: "9px 18px", background: C.target, color: C.ink,
+            borderRadius: 7, fontSize: 13, fontWeight: 700, textDecoration: "none",
+          }}>Explorer le simulateur →</Link>
+        </div>
+
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PAGE — SIMULATEUR (/simulateur)
+// ─────────────────────────────────────────────────────────────────────────────
+
+function SimulatorPage() {
+  const [engine,      setEngine]      = useState("rig");
+  const [heroMMR,     setHeroMMR]     = useState(2400);
+  const [poolSpread,  setPoolSpread]  = useState(180);
   const [rigStrength, setRigStrength] = useState(220);
-  const [carryScore, setCarryScore]   = useState(0.65);
-  const [games]                       = useState(300);
-  const [seed, setSeed]               = useState(7);
-  const [runs, setRuns]               = useState(200);
-  const [batch, setBatch]             = useState(null);
+  const [carryScore,  setCarryScore]  = useState(0.65);
+  const [seed,        setSeed]        = useState(7);
+  const [runs,        setRuns]        = useState(200);
+  const [batch,       setBatch]       = useState(null);
   const [batchEngine, setBatchEngine] = useState(null);
+  const games = 300;
 
   const sim = useMemo(
     () => simulate({ engine, games, heroMMR, poolSpread, rigStrength, carryScore, seed }),
@@ -1316,111 +1441,25 @@ export default function App() {
     : "Split pusher (Tryndamere, Fiora)";
 
   return (
-    <div style={{ minHeight: "100vh", background: C.ink, color: C.text, fontFamily: SANS, padding: "40px 20px" }}>
+    <div style={{ padding: "40px 20px" }}>
       <div style={{ maxWidth: 740, margin: "0 auto" }}>
 
-        {/* ── HEADER ── */}
-        <div style={{ marginBottom: 32 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 12 }}>
-            <div>
-              <div style={{ fontSize: 10, letterSpacing: "0.15em", color: C.mute, fontFamily: MONO, marginBottom: 10 }}>
-                MATCHMAKING · BANC D'ESSAI STATISTIQUE
-              </div>
-              <h1 style={{ fontSize: 32, fontWeight: 800, margin: "0 0 10px", lineHeight: 1.1, letterSpacing: "-0.5px" }}>
-                La loser queue existe-t-elle ?
-              </h1>
-              <p style={{ color: C.mute, fontSize: 14, lineHeight: 1.65, maxWidth: 520, margin: 0 }}>
-                Simule les deux hypothèses, teste ton intuition,
-                puis vois ce que <span style={{ color: C.text }}>1 600+ vraies games</span> révèlent.
-                Suis les étapes dans l'ordre.
-              </p>
-            </div>
-            <button
-              onClick={() => setShowAnalysis(v => !v)}
-              style={{
-                padding: "10px 18px",
-                background: showAnalysis ? C.target + "20" : "transparent",
-                color: showAnalysis ? C.target : C.mute,
-                border: `1px solid ${showAnalysis ? C.target + "60" : C.dim}`,
-                borderRadius: 8,
-                fontSize: 13,
-                fontWeight: 600,
-                cursor: "pointer",
-                transition: "all .12s",
-                alignSelf: "flex-start",
-                whiteSpace: "nowrap",
-              }}
-            >
-              Mon analyse
-            </button>
+        <div style={{ marginBottom: 28 }}>
+          <div style={{ fontSize: 10, letterSpacing: "0.15em", color: C.mute, fontFamily: MONO, marginBottom: 8 }}>
+            SIMULATEUR INTERACTIF
           </div>
+          <h2 style={{ fontSize: 26, fontWeight: 800, margin: "0 0 8px", letterSpacing: "-0.3px" }}>
+            Explorer les deux moteurs
+          </h2>
+          <p style={{ fontSize: 13, color: C.mute, lineHeight: 1.6, maxWidth: 520, margin: 0 }}>
+            Bascule entre truqué et honnête, ajuste les paramètres, lance des simulations en masse.
+            Les paramètres affectent également le BlindTest sur{" "}
+            <Link to="/" style={{ color: C.mute, textDecoration: "underline", textDecorationColor: C.dim }}>La Théorie</Link>.
+          </p>
         </div>
 
-        {showAnalysis && <Analysis />}
-
-        {/* ════════════════════════════════
-            01 — LE PARADOXE
-        ════════════════════════════════ */}
-        <Step n={1} title="Le paradoxe"
-          sub="Un matchmaking honnête et une loser queue produisent des courbes de WR identiques à l'œil" />
-
-        <ParadoxSection seed={seed} heroMMR={heroMMR} poolSpread={poolSpread}
-          rigStrength={rigStrength} carryScore={carryScore} games={games} />
-
-        <Callout color={C.fair}>
-          Les deux win-rates convergent vers 50%, les séries de défaites ont la même longueur.{" "}
-          <b>Impossible de dire laquelle est truquée</b> — c'est tout le piège.
-          Le ressenti n'est pas un test.
-        </Callout>
-
-        {/* ════════════════════════════════
-            02 — PROUVE-LE
-        ════════════════════════════════ */}
-        <Step n={2} title="Prouve-le toi-même"
-          sub="50 games simulées, moteur secret — peux-tu le deviner ?" />
-
-        <BlindTest heroMMR={heroMMR} poolSpread={poolSpread} carryScore={carryScore} />
-
-        <Callout color={C.target}>
-          La plupart des joueurs stagnent autour de{" "}
-          <b>50% de bonnes réponses</b> — exactement le hasard pur.
-          Il faut un test différent, pas une intuition.
-        </Callout>
-
-        {/* ════════════════════════════════
-            03 — LE TEST DÉCISIF
-        ════════════════════════════════ */}
-        <Step n={3} title="Le test décisif"
-          sub="Ce que les courbes cachent — un nuage de points révèle le signal" />
-
-        <AlwaysOnScatterComparison heroMMR={heroMMR} poolSpread={poolSpread}
-          rigStrength={rigStrength} carryScore={carryScore} seed={seed} games={games} />
-
-        <Callout color={C.rig}>
-          <b>Moteur truqué :</b> pente nettement négative — quand le joueur est en forme,
-          l'écart d'équipe se creuse systématiquement.{" "}
-          <b>Moteur honnête :</b> pente ≈ 0, nuage plat.
-          C'est ce test —{" "}
-          <code style={{ color: C.target, fontFamily: MONO }}>team_diff ~ recent_wr</code>{" "}
-          — qui est appliqué sur les vraies données ci-dessous.
-        </Callout>
-
-        {/* ════════════════════════════════
-            03b — ET DANS LA RÉALITÉ ?
-        ════════════════════════════════ */}
-        <Step n="3b" title="Et dans la réalité ?"
-          sub="Le même test appliqué sur des vraies games collectées via l'API Riot" />
-
-        <RealDataSection poolSpread={poolSpread} />
-
-        {/* ════════════════════════════════
-            04 — EXPLORER
-        ════════════════════════════════ */}
-        <Step n={4} title="Explorer"
-          sub="Bascule entre les deux moteurs — observe comment les indicateurs réagissent" />
-
-        {/* Toggle */}
-        <div style={{ display: "flex", gap: 6, marginBottom: 16 }}>
+        {/* Toggle moteur */}
+        <div style={{ display: "flex", gap: 6, marginBottom: 20 }}>
           {[["rig", "Truqué", C.rig], ["fair", "Honnête", C.fair]].map(([k, l, c]) => (
             <button key={k} onClick={() => setEngine(k)} style={{
               flex: 1, padding: "11px 14px",
@@ -1431,9 +1470,8 @@ export default function App() {
               cursor: "pointer", transition: "all .12s",
             }}>
               <span style={{
-                display: "inline-block", width: 7, height: 7,
-                borderRadius: "50%", background: c,
-                marginRight: 7, verticalAlign: "middle",
+                display: "inline-block", width: 7, height: 7, borderRadius: "50%",
+                background: c, marginRight: 7, verticalAlign: "middle",
                 opacity: engine === k ? 1 : 0.35,
               }} />
               {l}
@@ -1443,37 +1481,30 @@ export default function App() {
 
         {/* Indicateurs */}
         <Card>
-          <Eyebrow>Indicateurs · 300 games</Eyebrow>
+          <Eyebrow>Indicateurs · {games} games</Eyebrow>
           <div style={{ display: "flex", gap: 14, flexWrap: "wrap" }}>
-            <Stat label="Win-rate"       value={`${sim.winRate.toFixed(1)}%`} />
-            <Stat label="Série L max"    value={sim.maxLoss} />
-            <Stat label="Épisodes"       value={sim.episodes}
-              color={sim.episodes > 3 ? C.rig : C.mute} />
+            <Stat label="Win-rate"        value={`${sim.winRate.toFixed(1)}%`} />
+            <Stat label="Série L max"     value={sim.maxLoss} />
+            <Stat label="Épisodes"        value={sim.episodes} color={sim.episodes > 3 ? C.rig : C.mute} />
             <Stat label="WR équipe faible"
               value={sim.wrUnfav != null ? `${sim.wrUnfav.toFixed(0)}%` : "—"}
               color={sim.wrUnfav < 45 ? C.rig : C.fair} />
-            <Stat label="Pente reg."     value={sim.reg.slope.toFixed(0)}
+            <Stat label="Pente reg."      value={sim.reg.slope.toFixed(0)}
               color={sim.reg.slope < -60 ? C.rig : sim.reg.slope < -25 ? C.target : C.fair} />
           </div>
         </Card>
 
-        {/* Courbe WR */}
+        {/* Courbe WR + streak strip */}
         <Card>
-          <Eyebrow>
-            Win-rate cumulé
-            {episodeRanges.length > 0 && ` · ${episodeRanges.length} épisode(s)`}
-          </Eyebrow>
+          <Eyebrow>Win-rate cumulé{episodeRanges.length > 0 && ` · ${episodeRanges.length} épisode(s)`}</Eyebrow>
           {episodeRanges.length > 0 && (
             <p style={{ fontSize: 12, color: C.mute, margin: "0 0 10px", lineHeight: 1.5 }}>
               Zones ombrées : ≥3 games de suite où{" "}
               <span style={{ color: C.rig }}>l'équipe est anormalement faible</span>{" "}
-              alors que{" "}
-              <span style={{ color: C.fair }}>le joueur est en forme</span>{" "}
-              (WR récent &gt; 55%)
+              alors que <span style={{ color: C.fair }}>le joueur est en forme</span> (WR récent &gt; 55%)
             </p>
           )}
           <Sparkline data={sim.wr} episodeRanges={episodeRanges} color={color} />
-
           {episodeRanges.length > 0 && (
             <>
               <div style={{ fontSize: 11, color: C.mute, margin: "14px 0 6px", fontFamily: MONO }}>
@@ -1482,132 +1513,176 @@ export default function App() {
               <EpisodeTimeline results={sim.results} episodeRanges={episodeRanges} />
             </>
           )}
-
           <Divider margin="14px 0 10px" />
           <div style={{ fontSize: 11, color: C.mute, marginBottom: 8, fontFamily: MONO }}>
             <span style={{ color: C.fair }}>■ victoire</span>{"  "}
             <span style={{ color: C.rig }}>■ défaite</span>
-            {episodeRanges.length > 0 &&
-              <span style={{ color: C.target }}> · contour or = dans un épisode</span>}
+            {episodeRanges.length > 0 && <span style={{ color: C.target }}> · contour or = dans un épisode</span>}
           </div>
           <StreakStrip results={sim.results} episodeRanges={episodeRanges} />
         </Card>
 
-        {/* ════════════════════════════════
-            APPROFONDIR
-        ════════════════════════════════ */}
-        <Collapsible title="Approfondir — carry score, simulations en masse, paramètres">
+        {/* Carry */}
+        <CarryComparison engine={engine} heroMMR={heroMMR} poolSpread={poolSpread}
+          rigStrength={rigStrength} seed={seed} games={games} />
 
-          <div style={{ padding: "0 4px" }}>
-            <CarryComparison engine={engine} heroMMR={heroMMR} poolSpread={poolSpread}
-              rigStrength={rigStrength} seed={seed} games={games} />
-          </div>
-
-          {/* Batch */}
-          <Card>
-            <Eyebrow>Distribution sur N simulations</Eyebrow>
-            <p style={{ fontSize: 12, color: C.mute, margin: "0 0 16px", lineHeight: 1.5 }}>
-              Lance N fois la simulation et observe la distribution des métriques.
-              Les <b style={{ color: C.text }}>pentes de régression</b> sont l'indicateur le plus décisif.
-            </p>
-            <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
-              <button onClick={() => {
-                setBatch(batchSimulate({ engine, games, heroMMR, poolSpread, rigStrength, carryScore, seed }, runs));
-                setBatchEngine(engine);
-              }} style={{
-                padding: "10px 18px", background: color, color: C.ink,
-                border: "none", borderRadius: 7,
-                fontSize: 13, fontWeight: 700, cursor: "pointer",
-              }}>
-                ▶ Lancer {runs} simulations
-              </button>
-              <div style={{ flex: 1, minWidth: 160 }}>
-                <input type="range" min={20} max={1000} step={20} value={runs}
-                  onChange={e => setRuns(Number(e.target.value))}
-                  style={{ width: "100%", accentColor: C.target }} />
-                <div style={{ fontSize: 11, color: C.mute, marginTop: 2, fontFamily: MONO }}>
-                  {runs} runs · {(runs * games).toLocaleString()} parties
-                </div>
+        {/* Batch */}
+        <Card>
+          <Eyebrow>Distribution sur N simulations</Eyebrow>
+          <p style={{ fontSize: 12, color: C.mute, margin: "0 0 16px", lineHeight: 1.5 }}>
+            Lance N fois la simulation. Les <b style={{ color: C.text }}>pentes de régression</b> sont l'indicateur le plus décisif.
+          </p>
+          <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
+            <button onClick={() => {
+              setBatch(batchSimulate({ engine, games, heroMMR, poolSpread, rigStrength, carryScore, seed }, runs));
+              setBatchEngine(engine);
+            }} style={{
+              padding: "10px 18px", background: color, color: C.ink,
+              border: "none", borderRadius: 7, fontSize: 13, fontWeight: 700, cursor: "pointer",
+            }}>▶ Lancer {runs} simulations</button>
+            <div style={{ flex: 1, minWidth: 160 }}>
+              <input type="range" min={20} max={1000} step={20} value={runs}
+                onChange={e => setRuns(Number(e.target.value))}
+                style={{ width: "100%", accentColor: C.target }} />
+              <div style={{ fontSize: 11, color: C.mute, marginTop: 2, fontFamily: MONO }}>
+                {runs} runs · {(runs * games).toLocaleString()} parties
               </div>
             </div>
-
-            {batch && (
-              <div style={{ marginTop: 18 }}>
-                <div style={{ fontSize: 11, color: C.mute, marginBottom: 12, fontFamily: MONO }}>
-                  {runs} runs ·{" "}
-                  <span style={{ color: batchEngine === "rig" ? C.rig : C.fair }}>
-                    moteur {batchEngine === "rig" ? "truqué" : "honnête"}
-                  </span>
-                  {" · ligne pointillée = moyenne"}
-                </div>
-                {[
-                  { label: "Win-rate final",
-                    values: batch.winRates, min: 35, max: 65, bins: 24,
-                    color: batchEngine === "rig" ? C.rig : C.fair, unit: "%" },
-                  { label: "Pentes de régression — à gauche de 0 = signature loser queue",
-                    values: batch.slopes, min: -400, max: 200, bins: 24,
-                    color: C.target, unit: "", highlightNeg: true },
-                  { label: "Série de victoires max",
-                    values: batch.maxWins, min: 0, max: 20, bins: 20, color: C.fair, unit: "" },
-                  { label: "Série de défaites max",
-                    values: batch.maxLosses, min: 0, max: 20, bins: 20, color: C.rig, unit: "" },
-                ].map(({ label, ...props }) => (
-                  <div key={label} style={{ marginBottom: 20 }}>
-                    <div style={{ fontSize: 12, color: C.text, marginBottom: 4 }}>{label}</div>
-                    <Histogram {...props} />
-                  </div>
-                ))}
-              </div>
-            )}
-          </Card>
-
-          {/* Paramètres */}
-          <Card>
-            <Eyebrow>Paramètres de simulation</Eyebrow>
-            <Slider label="MMR du héros" value={heroMMR} min={1000} max={3200} step={50}
-              onChange={setHeroMMR}
-              hint="Plus haut = pool plus rare = écarts naturellement plus larges." />
-            <Slider label="Dispersion du pool" value={poolSpread} min={50} max={400} step={10}
-              onChange={setPoolSpread}
-              hint="Écart-type de niveau des 9 autres joueurs." />
-            <Slider label="Force du biais" value={rigStrength} min={0} max={500} step={10}
-              onChange={setRigStrength} disabled={engine !== "rig"}
-              hint={engine === "rig"
-                ? "Intensité du biais de MMR quand le joueur est en forme."
-                : "Inactif en mode honnête."} />
-            <Divider margin="8px 0 16px" />
-            <Slider
-              label={`Carry score — ${carryLabel}`}
-              value={Math.round(carryScore * 100)}
-              min={0} max={100} step={5}
-              onChange={v => setCarryScore(v / 100)}
-              color={C.carry}
-              hint="0 = Yuumi → 100 = Tryndamere. Modifie l'impact du biais (H3)." />
-            <button onClick={() => setSeed(s => s + 1)} style={{
-              marginTop: 4, padding: "9px 16px",
-              background: "transparent", color: C.mute,
-              border: `1px solid ${C.dim}`,
-              borderRadius: 7, fontSize: 12, cursor: "pointer", fontFamily: MONO,
-            }}>
-              ⟳ Nouvelle seed #{seed + 1}
-            </button>
-          </Card>
-
-          {/* Méthodologie */}
-          <div style={{ padding: "0 4px" }}>
-            <MethodologyBanner />
           </div>
+          {batch && (
+            <div style={{ marginTop: 18 }}>
+              <div style={{ fontSize: 11, color: C.mute, marginBottom: 12, fontFamily: MONO }}>
+                {runs} runs ·{" "}
+                <span style={{ color: batchEngine === "rig" ? C.rig : C.fair }}>
+                  moteur {batchEngine === "rig" ? "truqué" : "honnête"}
+                </span>{" · ligne pointillée = moyenne"}
+              </div>
+              {[
+                { label: "Win-rate final", values: batch.winRates, min: 35, max: 65, bins: 24, color: batchEngine === "rig" ? C.rig : C.fair, unit: "%" },
+                { label: "Pentes de régression — à gauche de 0 = signature loser queue", values: batch.slopes, min: -400, max: 200, bins: 24, color: C.target, unit: "", highlightNeg: true },
+                { label: "Série de victoires max", values: batch.maxWins, min: 0, max: 20, bins: 20, color: C.fair, unit: "" },
+                { label: "Série de défaites max", values: batch.maxLosses, min: 0, max: 20, bins: 20, color: C.rig, unit: "" },
+              ].map(({ label, ...props }) => (
+                <div key={label} style={{ marginBottom: 20 }}>
+                  <div style={{ fontSize: 12, color: C.text, marginBottom: 4 }}>{label}</div>
+                  <Histogram {...props} />
+                </div>
+              ))}
+            </div>
+          )}
+        </Card>
 
-        </Collapsible>
+        {/* Paramètres */}
+        <Card>
+          <Eyebrow>Paramètres</Eyebrow>
+          <Slider label="MMR du héros" value={heroMMR} min={1000} max={3200} step={50}
+            onChange={setHeroMMR} hint="Plus haut = pool plus rare = écarts naturellement plus larges." />
+          <Slider label="Dispersion du pool" value={poolSpread} min={50} max={400} step={10}
+            onChange={setPoolSpread} hint="Écart-type de niveau des 9 autres joueurs." />
+          <Slider label="Force du biais" value={rigStrength} min={0} max={500} step={10}
+            onChange={setRigStrength} disabled={engine !== "rig"}
+            hint={engine === "rig" ? "Intensité du biais quand le joueur est en forme." : "Inactif en mode honnête."} />
+          <Divider margin="8px 0 16px" />
+          <Slider label={`Carry score — ${carryLabel}`}
+            value={Math.round(carryScore * 100)} min={0} max={100} step={5}
+            onChange={v => setCarryScore(v / 100)} color={C.carry}
+            hint="0 = Yuumi → 100 = Tryndamere. Modifie l'impact du biais (H3)." />
+          <button onClick={() => setSeed(s => s + 1)} style={{
+            marginTop: 4, padding: "9px 16px", background: "transparent", color: C.mute,
+            border: `1px solid ${C.dim}`, borderRadius: 7, fontSize: 12, cursor: "pointer", fontFamily: MONO,
+          }}>⟳ Nouvelle seed #{seed + 1}</button>
+        </Card>
 
-        {/* Footer */}
-        <p style={{ color: C.mute, fontSize: 12, lineHeight: 1.7, marginTop: 32 }}>
+        <p style={{ color: C.mute, fontSize: 12, lineHeight: 1.7, marginTop: 16 }}>
           Essaie : biais à 0 en mode honnête, MMR à 3000. Tu verras des séries de 7–8 défaites{" "}
           <em>sans aucun biais</em> — juste la variance naturelle d'un pool rare.
           Seule la <span style={{ color: C.text }}>pente de régression</span> distingue les deux hypothèses.
         </p>
 
       </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PAGE — RÉSULTATS (/resultats)
+// ─────────────────────────────────────────────────────────────────────────────
+
+function ResultatsPage() {
+  const [showAnalysis, setShowAnalysis] = useState(false);
+  const { players } = realData;
+  const phase = players && players.length >= 10 ? "confirmatoire" : "pilote";
+
+  return (
+    <div style={{ padding: "40px 20px" }}>
+      <div style={{ maxWidth: 740, margin: "0 auto" }}>
+
+        <div style={{ marginBottom: 28 }}>
+          <div style={{ fontSize: 10, letterSpacing: "0.15em", color: C.mute, fontFamily: MONO, marginBottom: 8 }}>
+            RÉSULTATS · API RIOT
+          </div>
+          <h2 style={{ fontSize: 26, fontWeight: 800, margin: "0 0 8px", letterSpacing: "-0.3px" }}>
+            Données réelles
+          </h2>
+          <p style={{ fontSize: 13, color: C.mute, lineHeight: 1.6, maxWidth: 560, margin: 0 }}>
+            Le test <code style={{ color: C.target, fontFamily: MONO }}>team_diff ~ recent_wr</code>{" "}
+            appliqué sur de vraies games via l'API Riot.
+            Phase actuelle : <b style={{ color: C.text }}>{phase}</b>
+            {phase === "pilote" && " · phase confirmatoire en cours (48 joueurs échantillonnés aléatoirement)."}.
+          </p>
+        </div>
+
+        {/* Analyser mes parties */}
+        <div style={{ marginBottom: 20 }}>
+          <button onClick={() => setShowAnalysis(v => !v)} style={{
+            padding: "10px 18px",
+            background: showAnalysis ? C.target + "20" : "transparent",
+            color: showAnalysis ? C.target : C.mute,
+            border: `1px solid ${showAnalysis ? C.target + "60" : C.dim}`,
+            borderRadius: 8, fontSize: 13, fontWeight: 600,
+            cursor: "pointer", transition: "all .12s",
+          }}>
+            {showAnalysis ? "Fermer l'analyse" : "Analyser mes parties →"}
+          </button>
+        </div>
+        {showAnalysis && <Analysis />}
+
+        {/* Données */}
+        <RealDataSection />
+
+        {/* OSF */}
+        <Card style={{ marginTop: 20 }}>
+          <Eyebrow>Pré-registration · osf.io/kdbxg</Eyebrow>
+          <div style={{ fontSize: 13, color: C.mute, lineHeight: 1.65 }}>
+            Hypothèses, estimateur (FE OLS within-player, NW-HAC SE) et règle de décision (α=0.05 unilatéral)
+            déposés publiquement avant toute collecte confirmatoire —{" "}
+            <b style={{ color: C.text }}>30 juin 2026, 15:09</b>.
+            Garantit que l'analyse est confirmatoire, pas exploratoire (anti-HARKing).
+          </div>
+        </Card>
+
+        {/* Méthodologie */}
+        <MethodologyBanner />
+
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// APP
+// ─────────────────────────────────────────────────────────────────────────────
+
+export default function App() {
+  return (
+    <div style={{ minHeight: "100vh", background: C.ink, color: C.text, fontFamily: SANS }}>
+      <NavBar />
+      <Routes>
+        <Route path="/"           element={<TheoriePage />} />
+        <Route path="/simulateur" element={<SimulatorPage />} />
+        <Route path="/resultats"  element={<ResultatsPage />} />
+        <Route path="*"           element={<TheoriePage />} />
+      </Routes>
     </div>
   );
 }
