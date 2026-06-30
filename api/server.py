@@ -125,6 +125,12 @@ def health():
 def analyze(req: AnalyzeRequest):
     api_key = _api_key()
 
+    # Normalisation défensive : supprime les espaces autour du '#'
+    riot_id_clean = req.riot_id.strip()
+    if "#" in riot_id_clean:
+        parts = riot_id_clean.split("#", 1)
+        riot_id_clean = parts[0].rstrip() + "#" + parts[1].lstrip()
+
     count = min(req.count, MAX_COUNT)
 
     # ── 1. Résolution PUUID ──────────────────────────────────────────────────
@@ -132,12 +138,12 @@ def analyze(req: AnalyzeRequest):
         # get_puuid appelle sys.exit() si introuvable — on le court-circuite
         # en vérifiant le format puis en appelant riot_get directement
         from collect import riot_get
-        if "#" not in req.riot_id:
+        if "#" not in riot_id_clean:
             raise HTTPException(
                 status_code=400,
                 detail="riot_id doit être au format Pseudo#TAG (ex: Faker#KR1)",
             )
-        name, tag = req.riot_id.split("#", 1)
+        name, tag = riot_id_clean.split("#", 1)
         url = (
             f"https://{req.region}.api.riotgames.com"
             f"/riot/account/v1/accounts/by-riot-id/{name}/{tag}"
@@ -150,7 +156,7 @@ def analyze(req: AnalyzeRequest):
 
     if not account_data:
         raise HTTPException(
-            status_code=404, detail=f"Joueur introuvable: {req.riot_id}"
+            status_code=404, detail=f"Joueur introuvable: {riot_id_clean}"
         )
     puuid = account_data["puuid"]
 
@@ -246,7 +252,7 @@ def analyze(req: AnalyzeRequest):
 
     # ── 8. Réponse ───────────────────────────────────────────────────────────
     return {
-        "id":            req.riot_id,
+        "id":            riot_id_clean,
         "n":             n_total,
         "wr":            wr_pct,
         "slope":         slope_val,

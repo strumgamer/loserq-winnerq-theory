@@ -229,7 +229,8 @@ export default function Analysis() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!riotId.includes("#")) {
+    const normalized = riotId.trim().replace(/\s*#\s*/g, '#');
+    if (!normalized.includes("#")) {
       setError("Format invalide. Utilisez le format: Pseudo#TAG");
       return;
     }
@@ -246,7 +247,7 @@ export default function Analysis() {
       const resp = await fetch(`${API_URL}/api/analyze`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ riot_id: riotId, region, platform, count }),
+        body: JSON.stringify({ riot_id: normalized, region, platform, count }),
         signal: controller.signal,
       });
 
