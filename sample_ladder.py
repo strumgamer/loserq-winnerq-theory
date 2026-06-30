@@ -48,19 +48,17 @@ PILOT_IDS = {
 # ─── Key guard ────────────────────────────────────────────────────────────────
 
 def check_key_valid(api_key):
-    """Vérifie que la clé n'a pas expiré via riot_get() (même mécanisme que collect.py)."""
-    url = f"https://{PLATFORM}.api.riotgames.com/lol/status/v4/platform-data"
-    result = riot_get(url, api_key)
+    """Vérifie la clé via un endpoint league/v4 (même mécanisme et même format que collect.py)."""
+    url = f"https://{PLATFORM}.api.riotgames.com/lol/league/v4/entries/RANKED_SOLO_5x5/BRONZE/I"
+    result = riot_get(url, api_key, params={"page": 1})
     return result is not None
 
 
 def assert_key_valid(api_key, context=""):
     if not check_key_valid(api_key):
-        msg = f"\n⛔  Clé API expirée ou invalide{' (' + context + ')' if context else ''}."
-        msg += "\n    Régénère sur developer.riotgames.com puis :"
-        msg += "\n    read -rs -p 'Clé Riot : ' key && echo && export RIOT_API_KEY=\"$key\""
+        msg = f"\n⚠  Vérification clé échouée{' (' + context + ')' if context else ''}."
+        msg += " Collecte lancée quand même — elle s'arrêtera sur le premier 401 si la clé est invalide."
         print(msg)
-        sys.exit(1)
 
 
 # ─── Helpers API ──────────────────────────────────────────────────────────────
