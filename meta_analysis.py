@@ -454,11 +454,11 @@ def main():
             # Signaler explicitement si des estimateurs secondaires approchent le seuil
             if (pf < 0.10 and bf < 0) or (pr < 0.10 and br < 0):
                 print()
-                print("   Note : certains estimateurs secondaires s'approchent du seuil")
-                print(f"   dans la direction H1 (FE p={pf:.3f}, RE p={pr:.3f}).")
-                print("   Cela justifie la phase confirmatoire mais ne constitue pas")
-                print("   une preuve sous le plan pré-enregistré (estimateur primaire")
-                print("   = FE OLS within-player, non signif.). Voir METHODS.md.")
+                print(f"   Note : certains estimateurs secondaires (FE p={pf:.3f}, RE p={pr:.3f})")
+                print("   s'approchent du seuil dans la direction H1. Cela justifie")
+                print("   la phase confirmatoire mais ne constitue pas une preuve :")
+                print("   l'estimateur primaire pré-enregistré (FE OLS within-player)")
+                print("   est non significatif. Voir METHODS.md.")
     else:
         print("  Données insuffisantes pour conclure.")
 
