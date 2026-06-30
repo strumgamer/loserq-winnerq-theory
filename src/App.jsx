@@ -7,19 +7,19 @@ import Analysis from "./Analysis.jsx";
 // LOSER QUEUE — BANC D'ESSAI STATISTIQUE
 // ─────────────────────────────────────────────────────────────────────────────
 
-// Palette : fond quasi-noir, accents réservés aux données
+// Palette claire — accents sémantiques saturés
 const C = {
-  target:  "#E8C547",              // or — CTAs, moments clés
-  rig:     "#D6453D",              // rouge — signal négatif
-  fair:    "#3FA7A0",              // sarcelle — signal positif
-  carry:   "#A78BFA",              // violet — H3
-  ink:     "#08080E",              // fond global
-  paper:   "#10101A",              // fond de sections
-  card:    "#14141E",              // surface des cards
-  mute:    "#4E4E68",              // texte secondaire
-  dim:     "#2A2A3C",              // ligne subtile / séparateur
-  text:    "#E2E2EE",              // texte principal
-  suspect: "rgba(232,197,71,0.13)",
+  target:  "#C89B0A",              // or foncé — CTAs, moments clés
+  rig:     "#C4302A",              // rouge vif — signal négatif
+  fair:    "#1A8F89",              // sarcelle foncée — signal positif
+  carry:   "#7C5CE8",              // violet saturé — H3
+  ink:     "#F6F4EF",              // fond global crème
+  paper:   "#FDFCFA",              // fond de sections near-white
+  card:    "#FFFFFF",              // surface des cards blanc
+  mute:    "#72706D",              // texte secondaire
+  dim:     "#E0DBD3",              // ligne subtile / séparateur
+  text:    "#1A1917",              // texte principal
+  suspect: "rgba(200,155,10,0.10)",
 };
 
 const MONO = "ui-monospace,Menlo,'SF Mono',monospace";
@@ -159,7 +159,7 @@ function Card({ children, style = {} }) {
   return (
     <div style={{
       background: C.card,
-      border: "1px solid rgba(255,255,255,0.05)",
+      border: "1px solid rgba(0,0,0,0.06)",
       borderRadius: 14,
       padding: "24px",
       marginTop: 16,
@@ -669,7 +669,7 @@ function RealDataSection({ poolSpread = 300 }) {
                 return (
                   <tr key={p.id} style={{
                     borderBottom: `1px solid ${C.dim}`,
-                    background: i % 2 === 0 ? "transparent" : "rgba(255,255,255,0.015)",
+                    background: i % 2 === 0 ? "transparent" : "rgba(0,0,0,0.025)",
                   }}>
                     <td style={{ padding: "10px 10px", color: C.text, fontWeight: 500 }}>{p.id}</td>
                     <td style={{ padding: "10px 10px", color: C.mute, textAlign: "right", fontFamily: MONO }}>{p.n}</td>
@@ -724,7 +724,7 @@ function RealDataSection({ poolSpread = 300 }) {
             return (
               <div key={p.id} style={{
                 background: C.paper,
-                border: "1px solid rgba(255,255,255,0.04)",
+                border: "1px solid rgba(0,0,0,0.05)",
                 borderRadius: 10, padding: "14px",
               }}>
                 <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
@@ -772,7 +772,7 @@ function RealDataSection({ poolSpread = 300 }) {
               return (
                 <div key={p.id} style={{
                   background: C.paper,
-                  border: `1px solid ${hasDivergence ? C.target + "44" : "rgba(255,255,255,0.04)"}`,
+                  border: `1px solid ${hasDivergence ? C.target + "44" : "rgba(0,0,0,0.05)"}`,
                   borderRadius: 10, padding: 16,
                 }}>
                   <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 12 }}>
@@ -843,7 +843,7 @@ function Collapsible({ title, children }) {
       <button onClick={() => setOpen(o => !o)} style={{
         width: "100%", padding: "16px 20px",
         background: C.card,
-        border: "1px solid rgba(255,255,255,0.05)",
+        border: "1px solid rgba(0,0,0,0.06)",
         borderRadius: open ? "12px 12px 0 0" : 12,
         color: C.text, fontSize: 14, fontWeight: 600,
         cursor: "pointer",
@@ -860,7 +860,7 @@ function Collapsible({ title, children }) {
       </button>
       {open && (
         <div style={{
-          border: "1px solid rgba(255,255,255,0.05)", borderTop: "none",
+          border: "1px solid rgba(0,0,0,0.06)", borderTop: "none",
           borderRadius: "0 0 12px 12px",
           padding: "8px 0 16px",
         }}>
@@ -996,7 +996,7 @@ function CarryComparison({ engine, heroMMR, poolSpread, rigStrength, seed, games
           <div key={label} style={{
             flex: 1, minWidth: 150,
             background: C.paper,
-            border: "1px solid rgba(255,255,255,0.04)",
+            border: "1px solid rgba(0,0,0,0.05)",
             borderRadius: 10, padding: "16px",
           }}>
             <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 2 }}>{label}</div>
@@ -1186,7 +1186,7 @@ function BlindTest({ heroMMR, poolSpread, carryScore }) {
           {/* Résultat */}
           <div style={{
             padding: "14px 18px", borderRadius: 10, marginBottom: 18,
-            background: guess === round.engine ? "rgba(63,167,160,0.1)" : "rgba(214,69,61,0.1)",
+            background: guess === round.engine ? "rgba(26,143,137,0.1)" : "rgba(196,48,42,0.1)",
             borderLeft: `3px solid ${guess === round.engine ? C.fair : C.rig}`,
           }}>
             <div style={{ fontSize: 16, fontWeight: 700, color: guess === round.engine ? C.fair : C.rig, marginBottom: 4 }}>
@@ -1298,7 +1298,7 @@ function NavBar() {
   return (
     <nav style={{
       position: "sticky", top: 0, zIndex: 100,
-      background: "rgba(8,8,14,0.92)",
+      background: "rgba(246,244,239,0.92)",
       backdropFilter: "blur(14px)",
       borderBottom: `1px solid ${C.dim}`,
     }}>

@@ -3,16 +3,16 @@ import React, { useState, useRef } from "react";
 const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:8000";
 
 const C = {
-  target:  "#E8C547",
-  rig:     "#D6453D",
-  fair:    "#3FA7A0",
-  carry:   "#A78BFA",
-  ink:     "#08080E",
-  paper:   "#10101A",
-  card:    "#14141E",
-  mute:    "#4E4E68",
-  dim:     "#2A2A3C",
-  text:    "#E2E2EE",
+  target:  "#C89B0A",
+  rig:     "#C4302A",
+  fair:    "#1A8F89",
+  carry:   "#7C5CE8",
+  ink:     "#F6F4EF",
+  paper:   "#FDFCFA",
+  card:    "#FFFFFF",
+  mute:    "#72706D",
+  dim:     "#E0DBD3",
+  text:    "#1A1917",
 };
 
 const MONO = "ui-monospace,Menlo,'SF Mono',monospace";
@@ -36,7 +36,7 @@ function Spinner() {
 function ErrorBox({ message }) {
   return (
     <div style={{
-      background: "rgba(214,69,61,0.08)",
+      background: "rgba(196,48,42,0.08)",
       border: `1px solid ${C.rig}44`,
       borderRadius: 10,
       padding: "14px 18px",
@@ -290,7 +290,7 @@ export default function Analysis() {
   return (
     <div style={{
       background: C.card,
-      border: "1px solid rgba(255,255,255,0.05)",
+      border: "1px solid rgba(0,0,0,0.06)",
       borderRadius: 14,
       padding: "28px 28px 24px",
       marginBottom: 32,
@@ -458,7 +458,7 @@ export default function Analysis() {
           </div>
 
           <div style={{
-            background: hasSignal ? "rgba(214,69,61,0.08)" : "rgba(63,167,160,0.08)",
+            background: hasSignal ? "rgba(196,48,42,0.08)" : "rgba(26,143,137,0.08)",
             border: `1px solid ${hasSignal ? C.rig + "44" : C.fair + "44"}`,
             borderRadius: 10,
             padding: "14px 18px",
