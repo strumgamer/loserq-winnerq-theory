@@ -1054,52 +1054,123 @@ function MethodologyBanner() {
 // NAV
 // ─────────────────────────────────────────────────────────────────────────────
 
+function injectLogoKeyframes() {
+  if (document.getElementById('logo-kf')) return;
+  const s = document.createElement('style');
+  s.id = 'logo-kf';
+  s.textContent = `
+    @keyframes logoZoomIn {
+      from { transform: scale(0.12) rotate(-6deg); opacity: 0; }
+      to   { transform: scale(1)    rotate(0deg);  opacity: 1; }
+    }
+    @keyframes logoZoomOut {
+      from { transform: scale(1)    rotate(0deg);  opacity: 1; }
+      to   { transform: scale(0.12) rotate(6deg);  opacity: 0; }
+    }
+  `;
+  document.head.appendChild(s);
+}
+
+function LogoOverlay({ open, onClose }) {
+  const [visible, setVisible] = React.useState(false);
+  const [phase, setPhase] = React.useState('in');
+
+  React.useEffect(() => {
+    injectLogoKeyframes();
+  }, []);
+
+  React.useEffect(() => {
+    if (open) {
+      setVisible(true);
+      setPhase('in');
+    } else if (visible) {
+      setPhase('out');
+      const t = setTimeout(() => setVisible(false), 320);
+      return () => clearTimeout(t);
+    }
+  }, [open]);
+
+  if (!visible) return null;
+
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: 'fixed', inset: 0,
+        background: 'transparent',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        zIndex: 9999,
+        cursor: 'pointer',
+      }}
+    >
+      <img
+        src={logoSvg}
+        alt="LQ/WQ logo agrandi"
+        style={{
+          width: 220, height: 220,
+          animation: `${phase === 'in' ? 'logoZoomIn' : 'logoZoomOut'} 0.38s cubic-bezier(0.34,1.56,0.64,1) forwards`,
+          pointerEvents: 'none',
+          filter: 'drop-shadow(0 8px 32px rgba(26,25,23,0.18))',
+        }}
+      />
+    </div>
+  );
+}
+
 function NavBar() {
   const loc = useLocation();
+  const [logoOpen, setLogoOpen] = React.useState(false);
   const NAV = [
     { to: "/",           label: "La Théorie"  },
     { to: "/simulateur", label: "Simulateur"  },
     { to: "/resultats",  label: "Résultats"  },
   ];
   return (
-    <nav style={{
-      position: "sticky", top: 0, zIndex: 100,
-      background: "rgba(246,244,239,0.92)",
-      backdropFilter: "blur(14px)",
-      borderBottom: `1px solid ${C.dim}`,
-    }}>
-      <div style={{
-        maxWidth: 1060, margin: "0 auto",
-        display: "flex", alignItems: "center", gap: 2,
-        height: 50, padding: "0 20px",
+    <>
+      <LogoOverlay open={logoOpen} onClose={() => setLogoOpen(false)} />
+      <nav style={{
+        position: "sticky", top: 0, zIndex: 100,
+        background: "rgba(246,244,239,0.92)",
+        backdropFilter: "blur(14px)",
+        borderBottom: `1px solid ${C.dim}`,
       }}>
-        <Link to="/" style={{
-          display: "flex", alignItems: "center",
-          textDecoration: "none", marginRight: 14, flexShrink: 0,
-          userSelect: "none",
+        <div style={{
+          maxWidth: 1060, margin: "0 auto",
+          display: "flex", alignItems: "center", gap: 2,
+          height: 50, padding: "0 20px",
         }}>
-          <img
-            src={logoSvg}
-            alt="LQ/WQ logo"
-            style={{ height: 32, width: 32 }}
-          />
-        </Link>
-        {NAV.map(({ to, label }) => {
-          const active = loc.pathname === to;
-          return (
-            <Link key={to} to={to} style={{
-              padding: "5px 13px", borderRadius: 7,
-              fontSize: 13, fontWeight: active ? 600 : 400,
-              color: active ? C.text : C.mute,
-              background: active ? C.card : "transparent",
-              textDecoration: "none",
-              border: `1px solid ${active ? C.dim : "transparent"}`,
-              transition: "all .1s", whiteSpace: "nowrap",
-            }}>{label}</Link>
-          );
-        })}
-      </div>
-    </nav>
+          <button
+            onClick={(e) => { e.preventDefault(); setLogoOpen(o => !o); }}
+            style={{
+              background: 'none', border: 'none', padding: 0,
+              cursor: 'pointer', marginRight: 14, flexShrink: 0,
+              display: 'flex', alignItems: 'center',
+            }}
+            aria-label="Afficher le logo"
+          >
+            <img
+              src={logoSvg}
+              alt="LQ/WQ logo"
+              style={{ height: 32, width: 32 }}
+            />
+          </button>
+          {NAV.map(({ to, label }) => {
+            const active = loc.pathname === to;
+            return (
+              <Link key={to} to={to} style={{
+                padding: "5px 13px", borderRadius: 7,
+                fontSize: 13, fontWeight: active ? 600 : 400,
+                color: active ? C.text : C.mute,
+                background: active ? C.card : "transparent",
+                textDecoration: "none",
+                border: `1px solid ${active ? C.dim : "transparent"}`,
+                transition: "all .1s", whiteSpace: "nowrap",
+              }}>{label}</Link>
+            );
+          })}
+        </div>
+      </nav>
+    </>
   );
 }
 
