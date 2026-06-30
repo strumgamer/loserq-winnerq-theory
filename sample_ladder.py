@@ -185,8 +185,14 @@ def run_collect(riot_id, out_dir):
     out_path  = Path(out_dir) / f"{safe_name}.csv"
 
     if out_path.exists():
-        print(f"  [skip] {riot_id} — déjà collecté ({out_path})")
-        return True
+        n_lines = sum(1 for _ in out_path.open(encoding="utf-8")) - 1
+        if n_lines >= 10:
+            print(f"  [skip] {riot_id} — déjà collecté ({n_lines} games, {out_path})")
+            return True
+        # CSV tronqué (expiration mid-run) — renommer et re-collecter
+        incomplete = out_path.with_suffix(".incomplete")
+        out_path.rename(incomplete)
+        print(f"  [tronqué] {riot_id} — {n_lines} games, renommé en .incomplete, re-collecte…")
 
     cmd = [
         sys.executable, "collect.py",
