@@ -632,6 +632,21 @@ export default function Analysis() {
                 </b>
               </span>
             </div>
+            <div style={{
+              marginTop: 12,
+              paddingTop: 10,
+              borderTop: `1px solid ${hasSignal ? C.rig + "22" : C.fair + "22"}`,
+              fontSize: 13,
+              color: C.text,
+              lineHeight: 1.7,
+            }}>
+              {hasSignal && result.slope < -80
+                ? <>Quand tu enchaînes les victoires, tes alliés sont <b>nettement plus faibles</b> que tes ennemis — statistiquement prouvé sur {result.n} parties. C'est la signature la plus forte de la loser queue. <span style={{ color: C.mute }}>Note : basé sur le rang public, pas le MMR interne de Riot.</span></>
+                : hasSignal
+                ? <>Légère tendance détectée : en forme, tes équipes sont <b>un peu moins fortes</b> que tes ennemis. Signal significatif, mais faible — la variance naturelle peut aussi l'expliquer. <span style={{ color: C.mute }}>Essaie avec plus de parties pour confirmer.</span></>
+                : <>Aucun signal détecté. Sur {result.n} parties, <b>ta forme ne prédit pas la force de tes équipes</b>. Le matchmaking semble neutre sur cette période.</>
+              }
+            </div>
           </div>
 
           {result.timeline && result.timeline.length > 0 && (

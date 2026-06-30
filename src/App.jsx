@@ -1157,14 +1157,15 @@ function TheoriePage() {
             border: `1px solid ${C.dim}`, borderRadius: 7, fontSize: 12,
             cursor: "pointer", fontFamily: MONO,
           }}>⟳ Nouvelle seed #{seed + 1}</button>
-          <Link to="/simulateur" style={{
-            padding: "9px 18px", background: C.target, color: C.ink,
-            borderRadius: 7, fontSize: 13, fontWeight: 700, textDecoration: "none",
-          }}>Explorer le simulateur →</Link>
           <Link to="/resultats" style={{
-            padding: "9px 18px", background: C.fair, color: "#fff",
+            padding: "10px 22px", background: C.target, color: C.ink,
             borderRadius: 7, fontSize: 13, fontWeight: 700, textDecoration: "none",
           }}>Tester mon compte →</Link>
+          <Link to="/simulateur" style={{
+            padding: "10px 18px", background: "transparent", color: C.mute,
+            borderRadius: 7, fontSize: 13, fontWeight: 500, textDecoration: "none",
+            border: `1px solid ${C.dim}`,
+          }}>Explorer le simulateur</Link>
         </div>
 
       </div>
@@ -1360,6 +1361,22 @@ function SimulatorPage() {
           Seule la <span style={{ color: C.text }}>pente de régression</span> distingue les deux hypothèses.
         </p>
 
+        <div style={{
+          marginTop: 32, padding: "20px 24px",
+          background: C.card, border: `1px solid ${C.dim}`,
+          borderRadius: 14, textAlign: "center",
+          boxShadow: "0 1px 4px rgba(0,0,0,0.06)",
+        }}>
+          <div style={{ fontSize: 14, color: C.mute, marginBottom: 12 }}>
+            Prochaine étape — applique le test sur ton propre compte
+          </div>
+          <Link to="/resultats" style={{
+            display: "inline-block",
+            padding: "12px 28px", background: C.target, color: C.ink,
+            borderRadius: 8, fontSize: 14, fontWeight: 700, textDecoration: "none",
+          }}>Tester mon compte →</Link>
+        </div>
+
       </div>
     </div>
   );
@@ -1406,19 +1423,24 @@ function ResultatsPage() {
         </div>
         <Analysis />
 
+        {/* OSF — signal de crédibilité en premier */}
+        <div style={{
+          marginTop: 24, marginBottom: 4,
+          padding: "14px 18px",
+          background: "rgba(200,155,10,0.06)",
+          border: `1px solid rgba(200,155,10,0.25)`,
+          borderLeft: `3px solid ${C.target}`,
+          borderRadius: 10,
+          fontSize: 13, color: C.mute, lineHeight: 1.65,
+        }}>
+          <b style={{ color: C.target }}>Pré-registration · osf.io/kdbxg</b>
+          {" — "}Hypothèses et méthode déposées publiquement avant toute collecte
+          (<b style={{ color: C.text }}>30 juin 2026, 15:09</b>).
+          Garantit que les résultats ci-dessous ne sont pas fabriqués après coup.
+        </div>
+
         {/* Données */}
         <RealDataSection />
-
-        {/* OSF */}
-        <Card style={{ marginTop: 20 }}>
-          <Eyebrow>Pré-registration · osf.io/kdbxg</Eyebrow>
-          <div style={{ fontSize: 13, color: C.mute, lineHeight: 1.65 }}>
-            Hypothèses, estimateur (FE OLS within-player, NW-HAC SE) et règle de décision (α=0.05 unilatéral)
-            déposés publiquement avant toute collecte confirmatoire —{" "}
-            <b style={{ color: C.text }}>30 juin 2026, 15:09</b>.
-            Garantit que l'analyse est confirmatoire, pas exploratoire (anti-HARKing).
-          </div>
-        </Card>
 
         {/* Méthodologie */}
         <MethodologyBanner />
