@@ -5,6 +5,7 @@ games_*.csv
 riot_cache/
 games.csv
 batch_out/
+confirmatory_players.txt
 __pycache__/
 *.pyc
 dist/
