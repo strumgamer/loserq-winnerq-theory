@@ -313,8 +313,16 @@ function TimelineView({ timeline, episodeRanges }) {
   );
 }
 
-function CarrySection({ slope_1v9, slope_teamdep }) {
+function CarrySection({ slope_1v9, slope_teamdep, n_1v9, n_teamdep }) {
   if (slope_1v9 == null && slope_teamdep == null) return null;
+  if ((n_1v9 == null || n_1v9 < 30) || (n_teamdep == null || n_teamdep < 30)) {
+    return (
+      <div style={{ marginTop: 20, padding: "10px 14px", background: "#F6F4EF",
+        borderRadius: 8, fontSize: 11, color: "#72706D", fontFamily: "ui-monospace,Menlo,'SF Mono',monospace" }}>
+        Carry stratification — sous-groupes insuffisants (n_1v9={n_1v9 ?? "—"}, n_teamdep={n_teamdep ?? "—"}, minimum 30 par groupe requis).
+      </div>
+    );
+  }
   const maxAbs = 250;
   const bar = (val, label, color) => {
     if (val == null) return null;
@@ -350,10 +358,22 @@ function CarrySection({ slope_1v9, slope_teamdep }) {
   );
 }
 
+const SERVER_MAP = {
+  "euw1": { region: "europe",   platform: "euw1", label: "EUW — Europe Ouest" },
+  "eun1": { region: "europe",   platform: "eun1", label: "EUNE — Europe Nord-Est" },
+  "tr1":  { region: "europe",   platform: "tr1",  label: "TR — Turquie" },
+  "ru":   { region: "europe",   platform: "ru",   label: "RU — Russie" },
+  "na1":  { region: "americas", platform: "na1",  label: "NA — Amérique du Nord" },
+  "br1":  { region: "americas", platform: "br1",  label: "BR — Brésil" },
+  "la1":  { region: "americas", platform: "la1",  label: "LAN — Amérique Latine Nord" },
+  "la2":  { region: "americas", platform: "la2",  label: "LAS — Amérique Latine Sud" },
+  "kr":   { region: "asia",     platform: "kr",   label: "KR — Corée du Sud" },
+  "jp1":  { region: "asia",     platform: "jp1",  label: "JP — Japon" },
+};
+
 export default function Analysis() {
   const [riotId,  setRiotId]  = useState("");
-  const [region,  setRegion]  = useState("europe");
-  const [platform, setPlatform] = useState("euw1");
+  const [server, setServer] = useState("euw1");
   const [count,   setCount]   = useState(100);
   const [loading, setLoading] = useState(false);
   const [result,  setResult]  = useState(null);
@@ -362,19 +382,6 @@ export default function Analysis() {
   const [loadingStep, setLoadingStep] = useState(0);
   const stepTimerRef = useRef(null);
 
-  const platformByRegion = {
-    europe:   ["euw1", "eun1", "tr1", "ru"],
-    americas: ["na1", "br1", "la1", "la2"],
-    asia:     ["kr", "jp1"],
-  };
-
-  const handleRegionChange = (r) => {
-    setRegion(r);
-    const platforms = platformByRegion[r];
-    if (platforms && !platforms.includes(platform)) {
-      setPlatform(platforms[0]);
-    }
-  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -403,7 +410,7 @@ export default function Analysis() {
       const resp = await fetch(`${API_URL}/api/analyze`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ riot_id: normalized, region, platform, count }),
+        body: JSON.stringify({ riot_id: normalized, region: SERVER_MAP[server].region, platform: SERVER_MAP[server].platform, count }),
         signal: controller.signal,
       });
 
@@ -445,8 +452,6 @@ export default function Analysis() {
   const isMobile = useIsMobile();
 
   const hasSignal = result && result.p_uni < 0.05 && result.slope < 0;
-
-  const platforms = platformByRegion[region] || ["euw1"];
 
   return (
     <div style={{
@@ -502,51 +507,16 @@ export default function Analysis() {
           </div>
         </div>
 
-        <div style={{ flex: "1 1 120px" }}>
-          <label style={{ fontSize: 11, color: C.mute, display: "block", marginBottom: 5 }}>Région</label>
-          <select
-            value={region}
-            onChange={e => handleRegionChange(e.target.value)}
-            disabled={loading}
-            style={{
-              width: "100%",
-              background: C.paper,
-              border: `1px solid ${C.dim}`,
-              borderRadius: 7,
-              padding: "9px 10px",
-              color: C.text,
-              fontSize: 13,
-              cursor: loading ? "not-allowed" : "pointer",
-              opacity: loading ? 0.5 : 1,
-              minHeight: isMobile ? 40 : undefined,
-            }}
-          >
-            <option value="europe">europe</option>
-            <option value="americas">americas</option>
-            <option value="asia">asia</option>
-          </select>
-        </div>
-
-        <div style={{ flex: "1 1 100px" }}>
-          <label style={{ fontSize: 11, color: C.mute, display: "block", marginBottom: 5 }}>Serveur</label>
-          <select
-            value={platform}
-            onChange={e => setPlatform(e.target.value)}
-            disabled={loading}
-            style={{
-              width: "100%",
-              background: C.paper,
-              border: `1px solid ${C.dim}`,
-              borderRadius: 7,
-              padding: "9px 10px",
-              color: C.text,
-              fontSize: 13,
-              cursor: loading ? "not-allowed" : "pointer",
-              opacity: loading ? 0.5 : 1,
-              minHeight: isMobile ? 40 : undefined,
-            }}
-          >
-            {platforms.map(p => <option key={p} value={p}>{p}</option>)}
+        <div>
+          <label style={{ display: "block", fontSize: 11, color: C.mute, marginBottom: 4 }}>Serveur</label>
+          <select value={server} onChange={e => setServer(e.target.value)} style={{
+            padding: "8px 10px", borderRadius: 8, border: `1px solid ${C.dim}`,
+            fontSize: 13, background: C.card, color: C.text, cursor: "pointer",
+            minHeight: isMobile ? 40 : undefined,
+          }}>
+            {Object.entries(SERVER_MAP).map(([key, { label }]) => (
+              <option key={key} value={key}>{label}</option>
+            ))}
           </select>
         </div>
 
@@ -711,10 +681,10 @@ export default function Analysis() {
               lineHeight: 1.7,
             }}>
               {hasSignal && result.slope < -80
-                ? <>Quand tu enchaînes les victoires, tes alliés sont <b>nettement plus faibles</b> que tes ennemis — statistiquement prouvé sur {result.n} parties. C'est la signature la plus forte de la loser queue. <span style={{ color: C.mute }}>Note : basé sur le rang public, pas le MMR interne de Riot.</span></>
+                ? <>Signal fort : sur {result.n} parties, ta forme récente était corrélée à un écart d'équipe défavorable. <b>Compatible avec la loser queue, mais non répliqué</b> — un drift de rang ou un biais de sélection temporelle peuvent aussi expliquer ce résultat. <span style={{ color: C.mute }}>Basé sur le rang visible, pas le MMR interne Riot.</span></>
                 : hasSignal
-                ? <>Légère tendance détectée : en forme, tes équipes sont <b>un peu moins fortes</b> que tes ennemis. Signal significatif, mais faible — la variance naturelle peut aussi l'expliquer. <span style={{ color: C.mute }}>Essaie avec plus de parties pour confirmer.</span></>
-                : <>Aucun signal détecté. Sur {result.n} parties, <b>ta forme ne prédit pas la force de tes équipes</b>. Le matchmaking semble neutre sur cette période.</>
+                ? <>Signal faible : légère corrélation détectée entre ta forme et l'écart d'équipe. <b>Compatible avec H1, mais insuffisant pour conclure</b> — la variance naturelle sur {result.n} parties l'explique aussi. <span style={{ color: C.mute }}>Plus de parties = plus de puissance de test.</span></>
+                : <>Pas de signal. Sur {result.n} parties, <b>ta forme récente ne prédit pas la force de tes équipes</b> — résultat compatible avec un matchmaking neutre sur cette période.</>
               }
             </div>
           </div>
@@ -753,7 +723,7 @@ export default function Analysis() {
             </div>
           )}
 
-          <CarrySection slope_1v9={result.slope_1v9} slope_teamdep={result.slope_teamdep} />
+          <CarrySection slope_1v9={result.slope_1v9} slope_teamdep={result.slope_teamdep} n_1v9={result.n_1v9} n_teamdep={result.n_teamdep} />
 
           <div style={{
             marginTop: 20,

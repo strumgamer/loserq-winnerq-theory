@@ -621,13 +621,6 @@ function RealDataSection({ poolSpread = 300 }) {
             </div>
             <div style={{ fontSize: 11, color: C.mute }}>intercept moy.</div>
           </div>
-          <div style={{ textAlign: "right" }}>
-            <div style={{ fontSize: 28, fontWeight: 700, fontFamily: MONO,
-              color: nSignal > players.length / 2 ? C.rig : C.fair }}>
-              {nSignal}/{slopes.length}
-            </div>
-            <div style={{ fontSize: 11, color: C.mute }}>pentes &lt; −50</div>
-          </div>
         </div>
       </div>
 
@@ -1065,7 +1058,7 @@ function NavBar() {
   const NAV = [
     { to: "/",           label: "La Théorie"  },
     { to: "/simulateur", label: "Simulateur"  },
-    { to: "/resultats",  label: "Mon compte"  },
+    { to: "/resultats",  label: "Résultats"  },
   ];
   return (
     <nav style={{
@@ -1148,22 +1141,6 @@ function TheoriePage() {
             </Link>{" "}
             révèlent. Suis les étapes dans l'ordre.
           </p>
-        </div>
-
-        {/* Accroche émotionnelle */}
-        <div style={{
-          margin: "0 0 36px",
-          padding: "18px 22px",
-          background: "rgba(200,155,10,0.07)",
-          border: `1px solid rgba(200,155,10,0.2)`,
-          borderRadius: 12,
-          fontSize: 14, lineHeight: 1.7, color: C.text,
-        }}>
-          Tu viens de perdre 5 games de suite en jouant bien.{" "}
-          <b>Est-ce que c'est ta faute, ou le jeu t'a assigné des équipes plus faibles ?</b>
-          <span style={{ display: "block", marginTop: 6, fontSize: 13, color: C.mute }}>
-            Ce site répond à cette question avec de vraies données Riot — pas avec du ressenti.
-          </span>
         </div>
 
         {/* 01 */}
@@ -1319,14 +1296,6 @@ function SimulatorPage() {
             </p>
           )}
           <Sparkline data={sim.wr} episodeRanges={episodeRanges} color={color} />
-          {episodeRanges.length > 0 && (
-            <>
-              <div style={{ fontSize: 11, color: C.mute, margin: "14px 0 6px", fontFamily: MONO }}>
-                Timeline · cadres = épisodes (durée en games)
-              </div>
-              <EpisodeTimeline results={sim.results} episodeRanges={episodeRanges} />
-            </>
-          )}
           <Divider margin="14px 0 10px" />
           <div style={{ fontSize: 11, color: C.mute, marginBottom: 8, fontFamily: MONO }}>
             <span style={{ color: C.fair }}>■ victoire</span>{"  "}
@@ -1495,7 +1464,9 @@ function ResultatsPage() {
         <RealDataSection />
 
         {/* Méthodologie */}
-        <MethodologyBanner />
+        <div style={{ marginTop: 16, fontSize: 12, color: C.mute, textAlign: "center" }}>
+          <a href="/" style={{ color: C.mute, textDecoration: "underline" }}>← Comment fonctionne le test statistique ?</a>
+        </div>
 
       </div>
     </div>
