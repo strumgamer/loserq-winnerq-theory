@@ -281,7 +281,7 @@ def within_center(data_by_player):
     ys_out = []
     group_ids = []
     for pid, pairs in data_by_player.items():
-        if len(pairs) < 15:
+        if len(pairs) < 20:  # seuil pré-enregistré (METHODS.md N≥20)
             continue
         mx = sum(p[0] for p in pairs) / len(pairs)
         my = sum(p[1] for p in pairs) / len(pairs)
@@ -316,9 +316,21 @@ def load_player(path):
 # ─────────────────────────────────────────────────────────────────────────────
 
 def main():
+    import glob as _glob
     files = sys.argv[1:]
     if not files:
-        print("Usage : python3 meta_analysis.py fichier1.csv fichier2.csv ...")
+        print("Usage : python3 meta_analysis.py batch_out/ | fichier1.csv ...")
+        sys.exit(1)
+    # Accepte un répertoire en argument — glob les CSV automatiquement
+    expanded = []
+    for f in files:
+        if os.path.isdir(f):
+            expanded.extend(sorted(_glob.glob(os.path.join(f, "*.csv"))))
+        else:
+            expanded.append(f)
+    files = expanded
+    if not files:
+        print("Aucun fichier CSV trouvé.")
         sys.exit(1)
 
     SEP = "─" * 68
@@ -439,6 +451,14 @@ def main():
         else:
             print("✓  Pas de signal loser queue (within-player p≥0.05 ou β≥0).")
             print("   (Rappel : puissance ~95% pour r=0.10 avec n_total≥3000.)")
+            # Signaler explicitement si des estimateurs secondaires approchent le seuil
+            if (pf < 0.10 and bf < 0) or (pr < 0.10 and br < 0):
+                print()
+                print("   Note : certains estimateurs secondaires s'approchent du seuil")
+                print(f"   dans la direction H1 (FE p={pf:.3f}, RE p={pr:.3f}).")
+                print("   Cela justifie la phase confirmatoire mais ne constitue pas")
+                print("   une preuve sous le plan pré-enregistré (estimateur primaire")
+                print("   = FE OLS within-player, non signif.). Voir METHODS.md.")
     else:
         print("  Données insuffisantes pour conclure.")
 
