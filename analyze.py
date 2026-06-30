@@ -982,7 +982,7 @@ def main():
     print("  (0.0 = enchanteur pur, 1.0 = split pusher extrême)\n")
 
     # Séparer les games en deux groupes : carry_score bas vs élevé
-    CARRY_THRESHOLD = 0.55
+    CARRY_THRESHOLD = 0.65  # pré-enregistré, aligné avec anonymize.py
     lo_rows = [r for r in rows
                if r.get("my_carry_score") is not None
                and r["my_carry_score"] < CARRY_THRESHOLD

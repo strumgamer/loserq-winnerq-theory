@@ -11,7 +11,14 @@ Le projet teste si le matchmaking de Riot cible des joueurs individuels en leur 
 ## Fichiers
 
 - `collect.py` — collecte les données Riot API → `games.csv`
+- `sample_ladder.py` — **phase confirmatoire** : échantillonne le ladder EUW par tier (Bronze→Grandmaster ≤1000 LP), filtre les joueurs actifs (≥35 games / 60 jours), exclut les pilotes, génère `confirmatory_players.txt`
+- `batch.py` — pipeline complet auto-sample + collecte + stats rapides par joueur
 - `analyze.py` — teste les trois hypothèses sur le CSV produit
+- `meta_analysis.py` — DerSimonian-Laird, FE OLS within-player, sign test
+- `anonymize.py` — suppression PII + export `src/results/data.json`
+- `champion_data.py` — table carry_score par champion (0=enchanteur, 1=split pusher), utilisé par collect.py et analyze.py
+- `power_analysis.py` — calcul de puissance OLS one-tailed + sign test binomial
+- `api/server.py` — backend FastAPI déployé sur Render (POST /api/analyze, GET /health)
 - `plan.docx` — document de conception du projet
 - `App.jsx` — composant frontend (visualisation, contexte à préciser)
 
@@ -39,6 +46,7 @@ $env:RIOT_API_KEY = Read-Host -Prompt "Clé Riot" -AsSecureString | ConvertFrom-
 ```
 
 **Limites de la clé de dev** :
+
 - Expire toutes les 24h (le compteur repart à zéro à chaque regénération)
 - 20 req/s et 100 req/2min au niveau application
 - Des rate limits *method-level* s'appliquent aussi par endpoint (plus bas) — le script gère les 429 avec `Retry-After`
