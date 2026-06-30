@@ -85,6 +85,55 @@ def linregress_nw(xs, ys, max_lag=10):
     }
 
 
+def linregress_nw_panel(xs, ys, groups, max_lag=10):
+    """OLS avec SE Newey-West clustered par groupe (panel HAC).
+    Les gammas de lag k sont calculés uniquement entre observations
+    du même groupe — corrige le biais de concaténation inter-joueurs.
+    """
+    n = len(xs)
+    mx = sum(xs) / n
+    my = sum(ys) / n
+    sxx = sum((x - mx) ** 2 for x in xs)
+    sxy = sum((x - mx) * (y - my) for x, y in zip(xs, ys))
+    if sxx < 1e-12:
+        return None
+    slope = sxy / sxx
+    intercept = my - slope * mx
+    resid = [y - (intercept + slope * x) for x, y in zip(xs, ys)]
+    scores = [(xs[t] - mx) * resid[t] for t in range(n)]
+
+    # Gamma_0
+    gamma0 = sum(s * s for s in scores) / n
+
+    # Gammas de lag k : uniquement intra-groupe
+    gammas = [gamma0]
+    for lag in range(1, max_lag + 1):
+        gk = sum(
+            scores[t] * scores[t - lag]
+            for t in range(lag, n)
+            if groups[t] == groups[t - lag]
+        ) / n
+        gammas.append(gk)
+
+    # Bartlett kernel
+    S = gammas[0]
+    for lag in range(1, max_lag + 1):
+        w = 1.0 - lag / (max_lag + 1)
+        S += 2.0 * w * gammas[lag]
+
+    se_nw_raw = (S / (sxx / n) ** 2 / n) ** 0.5
+    se_ols = (sum(r * r for r in resid) / (n - 2) / sxx) ** 0.5
+    se_nw = max(se_nw_raw, se_ols)
+    t_nw = slope / se_nw if se_nw > 0 else 0.0
+    syy = sum((y - my) ** 2 for y in ys)
+    r_val = sxy / (sxx * syy) ** 0.5 if sxx > 0 and syy > 0 else 0.0
+    return {
+        "slope": slope, "intercept": intercept,
+        "r": r_val, "se": se_ols, "se_nw": se_nw,
+        "t_nw": t_nw, "n": n,
+    }
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # MÉTA-ANALYSE
 # ─────────────────────────────────────────────────────────────────────────────
@@ -134,16 +183,24 @@ def within_center(data_by_player):
     Élimine les effets fixes (niveau MMR, palier) pour ne retenir
     que la variation INTRA-joueur : quand CE joueur est plus en forme
     que son habituel, ses équipes sont-elles plus faibles que d'habitude ?
+
+    Retourne un triplet (xs, ys, group_ids) où group_ids est une liste
+    parallèle identifiant le joueur de chaque observation — nécessaire
+    pour l'estimateur clustered-HAC (panel NW).
     """
-    all_pairs = []
+    xs_out = []
+    ys_out = []
+    group_ids = []
     for pid, pairs in data_by_player.items():
         if len(pairs) < 15:
             continue
         mx = sum(p[0] for p in pairs) / len(pairs)
         my = sum(p[1] for p in pairs) / len(pairs)
         for x, y in pairs:
-            all_pairs.append((x - mx, y - my))
-    return all_pairs
+            xs_out.append(x - mx)
+            ys_out.append(y - my)
+            group_ids.append(pid)
+    return xs_out, ys_out, group_ids
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -218,19 +275,20 @@ def main():
     print("ESTIMATEUR PRINCIPAL : FE OLS WITHIN-PLAYER (centrage intra-joueur)")
     print("(élimine les effets fixes MMR inter-joueurs — pre-registered)")
     print(f"{SEP}")
-    wc = within_center(data_by_player)
-    if len(wc) >= 30:
-        xs_w, ys_w = [p[0] for p in wc], [p[1] for p in wc]
-        reg_w = linregress_nw(xs_w, ys_w, max_lag=10)
+    xs_w, ys_w, gs_w = within_center(data_by_player)
+    reg_w = None
+    if len(xs_w) >= 30:
+        reg_w = linregress_nw_panel(xs_w, ys_w, gs_w, max_lag=10)
         if reg_w:
             pw = p_one_sided(reg_w["t_nw"])
             sig = "⚠  H0 REJETÉE" if (pw < 0.05 and reg_w["slope"] < 0) else "✓  H0 conservée"
             print(f"  {sig}")
-            print(f"  n_total={reg_w['n']}  n_eff≈{reg_w['n_eff']}  "
+            print(f"  n_total={reg_w['n']}  "
                   f"slope={reg_w['slope']:+.1f}  SE_NW={reg_w['se_nw']:.1f}  "
                   f"t={reg_w['t_nw']:+.2f}  p_uni={pw:.4f}")
+            print(f"  [SE calculées avec clustered-HAC panel NW — gammas intra-joueur uniquement]")
     else:
-        print(f"  Données insuffisantes pour within-centering ({len(wc)} paires).")
+        print(f"  Données insuffisantes pour within-centering ({len(xs_w)} paires).")
 
     # ══ TESTS DE ROBUSTESSE (secondaires) ════════════════════════════════════
     print(f"\n{SEP}")
@@ -257,7 +315,7 @@ def main():
     print("CONCLUSION")
     print(f"{SEP}")
     # Décision basée UNIQUEMENT sur l'estimateur within (pre-registered)
-    if len(wc) >= 30 and reg_w:
+    if len(xs_w) >= 30 and reg_w:
         pw_final = p_one_sided(reg_w["t_nw"])
         if pw_final < 0.05 and reg_w["slope"] < 0:
             print("⚠  Signal loser queue détecté (within-player β<0, p<0.05).")

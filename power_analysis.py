@@ -72,6 +72,79 @@ def k_min_sign(p_true=0.75, alpha=0.05, power=0.80):
             return k
     return None
 
+def attenuation_bounds(
+    true_slopes=(-30, -60, -100, -150, -200),
+    noise_ratio=0.3,          # sigma_noise / sigma_signal estimé pour le proxy rang
+    n_values=(100, 200, 500, 1000, 3000),
+    alpha=0.05,
+    lag=10,
+):
+    """
+    Borne d'atténuation par erreur de mesure sur Y (proxy rang).
+
+    Dans OLS avec erreur de mesure sur Y (pas sur X), le slope est non-biaisé
+    mais la variance des résidus augmente → perte de puissance.
+
+    Si Y_obs = Y_true + epsilon, sigma_epsilon = noise_ratio * sigma_Y_true,
+    alors sigma_resid^2 = sigma_true_resid^2 + sigma_epsilon^2.
+
+    Cette fonction calcule, pour chaque pente vraie hypothétique et chaque N,
+    la puissance de détection avec le proxy bruité.
+
+    Paramètre noise_ratio : estimation de sqrt(Var_bruit) / sqrt(Var_signal_total).
+    0.3 = bruit = 30% de l'écart-type du signal → conservateur pour le rang public.
+    """
+    # Pour OLS avec erreur sur Y : slope est non-biaisé, mais SE augmente.
+    # SE_bruite = SE_clean * sqrt(1 + noise_ratio^2)
+    # => puissance réduite par facteur 1 / sqrt(1 + noise_ratio^2) sur l'effet standardisé.
+
+    noise_inflation = math.sqrt(1 + noise_ratio ** 2)
+
+    print("\n" + "=" * 65)
+    print("ATTENUATION BOUNDS — Erreur de mesure sur le proxy rang")
+    print(f"noise_ratio = {noise_ratio:.2f}  (bruit ≈ {noise_ratio*100:.0f}% de sigma_Y)")
+    print(f"Inflation SE = ×{noise_inflation:.3f}  (réduction puissance équivalente)")
+    print("=" * 65)
+
+    # Hypothèses : X ~ Uniform(0,1), sigma_X ≈ 0.289 (winrate 0-1)
+    # sigma_Y_proxy estimé depuis les données : ~150 rank points
+    sigma_x = 0.289
+    sigma_y_proxy = 150.0  # écart-type typique de team_diff en rank points
+
+    print(f"\n{'Pente vraie':>12} | {'N':>6} | {'r_effectif':>10} | {'Puissance':>10} | {'Interprétation'}")
+    print("-" * 65)
+
+    for slope in true_slopes:
+        # Corrélation théorique dans les données propres
+        r_clean = slope * sigma_x / sigma_y_proxy
+        # Corrélation effective avec proxy bruité (atténuée par inflation SE)
+        r_eff = r_clean / noise_inflation
+
+        for n in n_values:
+            # Puissance OLS one-tailed (approximation normale)
+            # delta = r_eff * sqrt(n - 2) / sqrt(1 - r_eff^2)
+            r2 = r_eff ** 2
+            if r2 >= 1.0:
+                power = 1.0
+            else:
+                delta = abs(r_eff) * math.sqrt(n - 2) / math.sqrt(max(1 - r2, 1e-9))
+                z_alpha = 1.6449  # z pour alpha=0.05 one-tailed
+                power = 0.5 * (1 + math.erf((delta - z_alpha) / math.sqrt(2)))
+
+            interp = (
+                "⚡ puissance >95%" if power > 0.95
+                else "✓ puissance >80%" if power > 0.80
+                else "~ puissance >50%" if power > 0.50
+                else "✗ sous-puissant"
+            )
+            print(f"{slope:>12} | {n:>6} | {r_eff:>10.4f} | {power:>9.1%} | {interp}")
+        print()
+
+    print(f"Note : noise_ratio={noise_ratio} est une estimation conservative.")
+    print("       Augmente noise_ratio pour un scénario pessimiste.")
+    print("       Source drift temporel : les rangs historiques ne sont pas disponibles.")
+
+
 if __name__ == "__main__":
     SEP = "─" * 56
     print(f"\n{SEP}")
@@ -167,3 +240,5 @@ if __name__ == "__main__":
     print()
     print("  Biais non corrigeable : atténuation par proxy rang (β → 0 si effet réel)")
     print("  → résultat négatif reste ambigu ; résultat positif serait conservateur")
+
+    attenuation_bounds()

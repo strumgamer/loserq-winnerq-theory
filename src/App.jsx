@@ -1460,6 +1460,29 @@ function ResultatsPage() {
           Garantit que les résultats ci-dessous ne sont pas fabriqués après coup.
         </div>
 
+        {/* Limites structurelles */}
+        <div style={{
+          margin: "16px 0",
+          padding: "14px 18px",
+          background: C.paper,
+          border: `1px solid ${C.dim}`,
+          borderLeft: `3px solid ${C.mute}`,
+          borderRadius: "0 8px 8px 0",
+          fontSize: 12, color: C.mute, lineHeight: 1.7,
+        }}>
+          <b style={{ color: C.text, display: "block", marginBottom: 6 }}>Limites de cette mesure</b>
+          <div style={{ marginBottom: 4 }}>
+            <b style={{ color: C.text }}>Drift temporel</b> — le rang utilisé est le rang actuel, appliqué à des games historiques.
+            Un joueur dont le niveau a changé entre ses parties et aujourd'hui introduit un biais dans l'écart d'équipe calculé.
+            L'effet peut être sous-estimé ou sur-estimé selon le sens du drift.
+          </div>
+          <div>
+            <b style={{ color: C.text }}>Biais de sélection</b> — le recrutement attire préférentiellement des joueurs qui croient à la loser queue.
+            Le test de symétrie mesure la composition des équipes (pas la performance individuelle), ce qui le rend partiellement immunisé —
+            mais une sur-représentation de joueurs en tilt reste possible.
+          </div>
+        </div>
+
         {/* Données */}
         <RealDataSection />
 
