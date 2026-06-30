@@ -71,7 +71,7 @@ LIMITER = RateLimiter()
 
 def riot_get(url, api_key, params=None, retries=3):
     """GET avec rate limiting, gestion 429 et 404."""
-    headers = {"X-Riot-Token": api_key}
+    headers = {"X-Riot-Token": api_key.strip()}
     for attempt in range(retries):
         LIMITER.wait()
         request_params = dict(params) if params else {}
