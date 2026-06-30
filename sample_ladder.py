@@ -25,6 +25,8 @@ import sys
 import time
 from pathlib import Path
 
+import requests as _requests
+
 from collect import riot_get, RateLimiter, Cache
 
 # ─── Constantes ───────────────────────────────────────────────────────────────
@@ -44,6 +46,27 @@ PILOT_IDS = {
     "kristal_uwu1", "san_ejetz", "vikingspt_euw", "weedymary_euw",
     "seestern_7777", "tjelletmeister_euw", "cap1tancalzones_euw",
 }
+
+# ─── Key guard ────────────────────────────────────────────────────────────────
+
+def check_key_valid(api_key):
+    """Vérifie que la clé n'a pas expiré. Retourne True si OK, False si 401/403."""
+    url = f"https://{PLATFORM}.api.riotgames.com/lol/status/v4/platform-data"
+    try:
+        r = _requests.get(url, headers={"X-Riot-Token": api_key}, timeout=10)
+        return r.status_code == 200
+    except Exception:
+        return False
+
+
+def assert_key_valid(api_key, context=""):
+    if not check_key_valid(api_key):
+        msg = f"\n⛔  Clé API expirée ou invalide{' (' + context + ')' if context else ''}."
+        msg += "\n    Régénère sur developer.riotgames.com puis :"
+        msg += "\n    read -rs -p 'Clé Riot : ' key && echo && export RIOT_API_KEY=\"$key\""
+        print(msg)
+        sys.exit(1)
+
 
 # ─── Helpers API ──────────────────────────────────────────────────────────────
 
@@ -87,10 +110,11 @@ def count_recent_ranked(puuid, api_key):
 
 # ─── Sampling ─────────────────────────────────────────────────────────────────
 
-def sample_tier(tier, n_target, api_key, seen_puuids):
+def sample_tier(tier, n_target, api_key, seen_puuids, extra_skip_ids=None):
     """
     Retourne une liste de (riot_id, puuid, tier, division) pour un tier donné.
     Tire aléatoirement dans les pages du ladder jusqu'à obtenir n_target joueurs valides.
+    extra_skip_ids : set de riot_id.lower() déjà présents dans un fichier existant.
     """
     results = []
 
@@ -131,6 +155,11 @@ def sample_tier(tier, n_target, api_key, seen_puuids):
         name_norm = riot_id.split("#")[0].lower().replace(" ", "_")
         if name_norm in PILOT_IDS:
             print(f"    [skip pilote] {riot_id}")
+            continue
+
+        # Exclusion top-up (déjà dans le fichier existant)
+        if extra_skip_ids and riot_id.lower() in extra_skip_ids:
+            print(f"    [skip existant] {riot_id}")
             continue
 
         # Filtre activité récente
@@ -181,12 +210,29 @@ def run_collect(riot_id, out_dir):
 
 # ─── Main ─────────────────────────────────────────────────────────────────────
 
+def _read_existing_ids(path):
+    """Lit un fichier de joueurs et retourne un set de riot_id normalisés."""
+    ids = set()
+    if not Path(path).exists():
+        return ids
+    for line in Path(path).read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+        parts = line.split(",", 1)
+        if len(parts) == 2:
+            ids.add(parts[1].strip().lower())
+    return ids
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--per-tier", type=int, default=6,
                     help="joueurs cibles par tier (défaut 6)")
     ap.add_argument("--out", default="confirmatory_players.txt",
                     help="fichier de sortie listing les joueurs sélectionnés")
+    ap.add_argument("--append-to", dest="append_to", default=None,
+                    help="APPEND nouveaux joueurs à ce fichier existant (top-up puissance)")
     ap.add_argument("--collect", action="store_true",
                     help="lance collect.py sur chaque joueur listé dans --in")
     ap.add_argument("--in",  dest="infile", default="confirmatory_players.txt",
@@ -201,6 +247,9 @@ def main():
     if not api_key:
         print("ERREUR : export RIOT_API_KEY='RGAPI-xxxx'")
         sys.exit(1)
+
+    # ── Vérification clé avant toute opération ───────────────────────────────
+    assert_key_valid(api_key, context="début de session")
 
     # ── Mode collecte batch ──────────────────────────────────────────────────
     if args.collect:
@@ -219,7 +268,10 @@ def main():
 
         print(f"→ {len(players)} joueurs à collecter depuis {infile}")
         ok = err = 0
-        for tier, riot_id in players:
+        for i, (tier, riot_id) in enumerate(players, 1):
+            # Re-vérification clé tous les 5 joueurs (~2-3h de collecte)
+            if i % 5 == 0:
+                assert_key_valid(api_key, context=f"joueur {i}/{len(players)}")
             if run_collect(riot_id, args.batch_out):
                 ok += 1
             else:
@@ -233,34 +285,54 @@ def main():
     seen_puuids = set()
     all_players = []
 
+    # Mode --append-to : skip les joueurs déjà listés
+    existing_ids = set()
+    append_mode  = args.append_to is not None
+    if append_mode:
+        existing_ids = _read_existing_ids(args.append_to)
+        print(f"[append] {len(existing_ids)} joueurs existants dans {args.append_to} — exclus du sampling")
+
+    def _is_new(riot_id):
+        return riot_id.lower() not in existing_ids
+
     for tier in TIERS:
         print(f"\n{'='*50}")
         print(f"Sampling {tier} (cible : {args.per_tier} joueurs)")
         print(f"{'='*50}")
-        players = sample_tier(tier, args.per_tier, api_key, seen_puuids)
+        players = sample_tier(tier, args.per_tier, api_key, seen_puuids,
+                              extra_skip_ids=existing_ids if append_mode else None)
         all_players.extend(players)
         if len(players) < args.per_tier:
             print(f"  ⚠ Seulement {len(players)}/{args.per_tier} validés pour {tier}")
 
     # Écriture du fichier de sortie
-    outfile = Path(args.out)
-    with outfile.open("w", encoding="utf-8") as f:
-        f.write(f"# Confirmatory players — sampled {time.strftime('%Y-%m-%d')}\n")
-        f.write(f"# Seed: {args.seed} | Per-tier: {args.per_tier}\n")
-        f.write(f"# Total: {len(all_players)} joueurs\n")
-        f.write(f"# Format: TIER,RIOT_ID\n#\n")
-        f.write(f"# Joueurs pilotes exclus :\n")
-        f.write(f"#   kristal_uwu1, SAN_eJetz, VikingsPT_EUW, WeedyMary_EUW\n")
-        f.write(f"#   seestern_7777, TjelletMeister_EUW, cap1tancalzones_EUW\n\n")
+    outfile = Path(args.append_to if append_mode else args.out)
+    mode = "a" if append_mode else "w"
+    with outfile.open(mode, encoding="utf-8") as f:
+        if append_mode:
+            f.write(f"\n# Top-up puissance — sampled {time.strftime('%Y-%m-%d')}\n")
+            f.write(f"# Seed: {args.seed} | Per-tier: {args.per_tier} | +{len(all_players)} joueurs\n\n")
+        else:
+            f.write(f"# Confirmatory players — sampled {time.strftime('%Y-%m-%d')}\n")
+            f.write(f"# Seed: {args.seed} | Per-tier: {args.per_tier}\n")
+            f.write(f"# Total: {len(all_players)} joueurs\n")
+            f.write(f"# Format: TIER,RIOT_ID\n#\n")
+            f.write(f"# Joueurs pilotes exclus :\n")
+            f.write(f"#   kristal_uwu1, SAN_eJetz, VikingsPT_EUW, WeedyMary_EUW\n")
+            f.write(f"#   seestern_7777, TjelletMeister_EUW, cap1tancalzones_EUW\n\n")
         for p in all_players:
             f.write(f"{p['tier']},{p['riot_id']}\n")
 
+    action = "ajoutés à" if append_mode else "écrits dans"
     print(f"\n{'='*50}")
-    print(f"✓ {len(all_players)} joueurs écrits dans {outfile}")
+    print(f"✓ {len(all_players)} joueurs {action} {outfile}")
+    if append_mode:
+        total = len(existing_ids) + len(all_players)
+        print(f"  Total dans le fichier : {total} joueurs")
     print(f"\nÉtape suivante — collecte (résumable si interrompue) :")
-    print(f"  python sample_ladder.py --collect --in {outfile} --batch-out batch_out/")
+    print(f"  python3 sample_ladder.py --collect --in {outfile} --batch-out batch_out/")
     print(f"\nPuis pipeline d'analyse :")
-    print(f"  python meta_analysis.py batch_out/")
+    print(f"  python3 anonymize.py && python3 meta_analysis.py batch_out/")
 
 
 if __name__ == "__main__":
