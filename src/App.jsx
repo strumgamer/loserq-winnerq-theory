@@ -1075,7 +1075,7 @@ function NavBar() {
       borderBottom: `1px solid ${C.dim}`,
     }}>
       <div style={{
-        maxWidth: 780, margin: "0 auto",
+        maxWidth: 1060, margin: "0 auto",
         display: "flex", alignItems: "center", gap: 2,
         height: 50, padding: "0 20px",
       }}>
@@ -1132,7 +1132,7 @@ function TheoriePage() {
 
   return (
     <div style={{ padding: "40px 20px" }}>
-      <div style={{ maxWidth: 740, margin: "0 auto" }}>
+      <div style={{ maxWidth: 1040, margin: "0 auto" }}>
 
         <div style={{ marginBottom: 36 }}>
           <div style={{ fontSize: 10, letterSpacing: "0.15em", color: C.mute, fontFamily: MONO, marginBottom: 10 }}>
@@ -1258,7 +1258,7 @@ function SimulatorPage() {
 
   return (
     <div style={{ padding: "40px 20px" }}>
-      <div style={{ maxWidth: 740, margin: "0 auto" }}>
+      <div style={{ maxWidth: 1040, margin: "0 auto" }}>
 
         <div style={{ marginBottom: 28 }}>
           <div style={{ fontSize: 10, letterSpacing: "0.15em", color: C.mute, fontFamily: MONO, marginBottom: 8 }}>
@@ -1445,7 +1445,7 @@ function ResultatsPage() {
 
   return (
     <div style={{ padding: "40px 20px" }}>
-      <div style={{ maxWidth: 740, margin: "0 auto" }}>
+      <div style={{ maxWidth: 1040, margin: "0 auto" }}>
 
         <div style={{ marginBottom: 28 }}>
           <div style={{ fontSize: 10, letterSpacing: "0.15em", color: C.mute, fontFamily: MONO, marginBottom: 8 }}>
