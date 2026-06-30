@@ -1067,6 +1067,16 @@ function injectLogoKeyframes() {
       from { transform: scale(1)    rotate(0deg);  opacity: 1; }
       to   { transform: scale(0.12) rotate(6deg);  opacity: 0; }
     }
+    @media (prefers-reduced-motion: reduce) {
+      @keyframes logoZoomIn {
+        from { opacity: 0; }
+        to   { opacity: 1; }
+      }
+      @keyframes logoZoomOut {
+        from { opacity: 1; }
+        to   { opacity: 0; }
+      }
+    }
   `;
   document.head.appendChild(s);
 }
