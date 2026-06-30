@@ -1,0 +1,12 @@
+.env
+.env.local
+.claude/
+games_*.csv
+riot_cache/
+games.csv
+batch_out/
+__pycache__/
+*.pyc
+dist/
+node_modules/
+.DS_Store

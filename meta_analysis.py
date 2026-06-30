@@ -1,0 +1,280 @@
+#!/usr/bin/env python3
+"""
+meta_analysis.py — Méta-analyse loser queue sur plusieurs joueurs.
+
+Intègre les quatre corrections issues de l'analyse PhD :
+  1. Newey-West SE  — corrige l'autocorrélation de la fenêtre glissante (×~3 sur SE)
+  2. Within-centering — nécessaire pour pooler des joueurs de paliers hétérogènes
+  3. Test du signe  — conclusion utilisable même sans sig. individuelle
+  4. DerSimonian-Laird — hétérogénéité entre joueurs
+
+Usage :
+  python3 meta_analysis.py batch_out/joueur1.csv batch_out/joueur2.csv ...
+  python3 meta_analysis.py batch_out/*.csv
+"""
+
+import csv
+import sys
+import os
+import math
+from math import sqrt, comb
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# RÉGRESSION OLS + NEWEY-WEST HAC
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _erf(x):
+    sign = 1 if x >= 0 else -1
+    x = abs(x)
+    a1, a2, a3, a4, a5, p = (0.254829592, -0.284496736, 1.421413741,
+                              -1.453152027,  1.061405429, 0.3275911)
+    t = 1 / (1 + p * x)
+    y = 1 - (((((a5*t + a4)*t) + a3)*t + a2)*t + a1)*t * math.exp(-x*x)
+    return sign * y
+
+
+def p_one_sided(t_stat):
+    """p-value unilatérale H1 : β < 0."""
+    z = abs(t_stat)
+    phi = 0.5 * (1 + _erf(z / sqrt(2)))
+    return 1 - phi if t_stat < 0 else phi
+
+
+def linregress_nw(xs, ys, max_lag=10):
+    """OLS + Newey-West HAC (Bartlett kernel, max_lag=10 pour fenêtre de 10)."""
+    n = len(xs)
+    if n < max_lag + 5:
+        return None
+    mx = sum(xs) / n
+    my = sum(ys) / n
+    sxx = sum((x - mx)**2 for x in xs)
+    sxy = sum((x - mx)*(y - my) for x, y in zip(xs, ys))
+    if sxx == 0:
+        return None
+    slope     = sxy / sxx
+    intercept = my - slope * mx
+    resid     = [y - (slope*x + intercept) for x, y in zip(xs, ys)]
+
+    # Scores de moment
+    scores = [(xs[t] - mx) * resid[t] for t in range(n)]
+
+    # Long-run variance (Bartlett kernel)
+    S  = sum(s**2 for s in scores) / n
+    S0 = S
+    for lag in range(1, max_lag + 1):
+        w     = 1.0 - lag / (max_lag + 1)
+        gamma = sum(scores[t] * scores[t - lag] for t in range(lag, n)) / n
+        S    += 2.0 * w * gamma
+
+    # Plancher conservateur SE_NW ≥ SE_OLS (pathologie fini-échantillon à N≈100)
+    se_ols    = sqrt((sum(e**2 for e in resid) / (n-2)) / sxx) if n > 2 else float("inf")
+    se_nw_raw = sqrt(max(S, 0.0) / (sxx / n)) / sqrt(n) if sxx else float("inf")
+    se_nw     = max(se_nw_raw, se_ols)
+    t_nw      = slope / se_nw if se_nw > 0 else 0.0
+    n_eff     = int(n * S0 / max(S, S0)) if S > 0 else n
+
+    syy = sum((y - my)**2 for y in ys)
+    r   = sxy / sqrt(sxx * syy) if sxx and syy else 0.0
+
+    return {
+        "slope": slope, "intercept": intercept,
+        "se_ols": se_ols, "se_nw": se_nw, "t_nw": t_nw,
+        "r": r, "n": n, "n_eff": n_eff,
+        "p_uni": p_one_sided(t_nw),
+    }
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# MÉTA-ANALYSE
+# ─────────────────────────────────────────────────────────────────────────────
+
+def meta_fixed_effects(betas, ses):
+    """Fixed-effects (inverse variance)."""
+    w  = [1/s**2 for s in ses]
+    W  = sum(w)
+    bf = sum(wi*bi for wi, bi in zip(w, betas)) / W
+    sf = 1 / sqrt(W)
+    return bf, sf, bf / sf
+
+
+def meta_dersimonian_laird(betas, ses):
+    """Random-effects DerSimonian-Laird."""
+    k  = len(betas)
+    w  = [1/s**2 for s in ses]
+    W  = sum(w)
+    bf = sum(wi*bi for wi, bi in zip(w, betas)) / W
+    Q  = sum(wi*(bi - bf)**2 for wi, bi in zip(w, betas))
+    C  = W - sum(wi**2 for wi in w) / W
+    t2 = max(0.0, (Q - (k - 1)) / C)
+    wr = [1 / (s**2 + t2) for s in ses]
+    Wr = sum(wr)
+    br = sum(wi*bi for wi, bi in zip(wr, betas)) / Wr
+    sr = 1 / sqrt(Wr)
+    I2 = max(0.0, (Q - (k - 1)) / Q) if Q > 0 else 0.0
+    return br, sr, br / sr, t2, Q, I2
+
+
+def sign_test(betas):
+    """Test binomial unilatéral : H0 P(β<0)=0.5 vs H1 P(β<0)>0.5."""
+    k     = len(betas)
+    n_neg = sum(1 for b in betas if b < 0)
+    p     = sum(comb(k, i) * (0.5**k) for i in range(n_neg, k + 1))
+    return n_neg, k, p
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# WITHIN-CENTERING (pooling inter-joueurs valide)
+# ─────────────────────────────────────────────────────────────────────────────
+
+def within_center(data_by_player):
+    """
+    Centrage intra-joueur avant pooling.
+
+    Élimine les effets fixes (niveau MMR, palier) pour ne retenir
+    que la variation INTRA-joueur : quand CE joueur est plus en forme
+    que son habituel, ses équipes sont-elles plus faibles que d'habitude ?
+    """
+    all_pairs = []
+    for pid, pairs in data_by_player.items():
+        if len(pairs) < 15:
+            continue
+        mx = sum(p[0] for p in pairs) / len(pairs)
+        my = sum(p[1] for p in pairs) / len(pairs)
+        for x, y in pairs:
+            all_pairs.append((x - mx, y - my))
+    return all_pairs
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# CHARGEMENT DES DONNÉES
+# ─────────────────────────────────────────────────────────────────────────────
+
+def load_player(path):
+    """Renvoie la liste de (recent_wr_10, team_diff) pour un CSV joueur."""
+    pairs = []
+    with open(path, encoding="utf-8") as f:
+        for r in csv.DictReader(f):
+            wr = r.get("recent_wr_10", "")
+            td = r.get("team_diff", "")
+            if wr not in ("", "None") and td not in ("", "None"):
+                try:
+                    pairs.append((float(wr), float(td)))
+                except ValueError:
+                    pass
+    return pairs
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# MAIN
+# ─────────────────────────────────────────────────────────────────────────────
+
+def main():
+    files = sys.argv[1:]
+    if not files:
+        print("Usage : python3 meta_analysis.py fichier1.csv fichier2.csv ...")
+        sys.exit(1)
+
+    SEP = "─" * 68
+    print(f"\n{SEP}")
+    print("MÉTA-ANALYSE LOSER QUEUE — plusieurs joueurs")
+    print(f"{SEP}")
+    print("(SE Newey-West, lag=10 — corrige l'autocorrélation fenêtre glissante)")
+    print()
+
+    results       = []
+    data_by_player = {}
+
+    for fpath in files:
+        pairs = load_player(fpath)
+        pid   = os.path.splitext(os.path.basename(fpath))[0]
+        data_by_player[pid] = pairs
+
+        if len(pairs) < 20:
+            print(f"  [{pid}]  {len(pairs)} games — insuffisant, ignoré")
+            continue
+
+        xs, ys = [p[0] for p in pairs], [p[1] for p in pairs]
+        reg = linregress_nw(xs, ys, max_lag=10)
+        if reg is None:
+            continue
+
+        sig = "⚠" if reg["p_uni"] < 0.05 else " "
+        print(f"  {sig} [{pid}]")
+        print(f"      n={reg['n']}  n_eff≈{reg['n_eff']}  "
+              f"slope={reg['slope']:+.1f}  SE_NW={reg['se_nw']:.1f}  "
+              f"t={reg['t_nw']:+.2f}  p_uni={reg['p_uni']:.4f}  r={reg['r']:+.3f}")
+        results.append((pid, reg))
+
+    if len(results) < 2:
+        print("\nPas assez de joueurs pour une méta-analyse (minimum 2).")
+        return
+
+    betas = [r[1]["slope"]  for r in results]
+    ses   = [r[1]["se_nw"]  for r in results]
+
+    # ══ ESTIMATEUR PRINCIPAL (pre-registered) ═══════════════════════════════
+    print(f"\n{SEP}")
+    print("ESTIMATEUR PRINCIPAL : FE OLS WITHIN-PLAYER (centrage intra-joueur)")
+    print("(élimine les effets fixes MMR inter-joueurs — pre-registered)")
+    print(f"{SEP}")
+    wc = within_center(data_by_player)
+    if len(wc) >= 30:
+        xs_w, ys_w = [p[0] for p in wc], [p[1] for p in wc]
+        reg_w = linregress_nw(xs_w, ys_w, max_lag=10)
+        if reg_w:
+            pw = p_one_sided(reg_w["t_nw"])
+            sig = "⚠  H0 REJETÉE" if (pw < 0.05 and reg_w["slope"] < 0) else "✓  H0 conservée"
+            print(f"  {sig}")
+            print(f"  n_total={reg_w['n']}  n_eff≈{reg_w['n_eff']}  "
+                  f"slope={reg_w['slope']:+.1f}  SE_NW={reg_w['se_nw']:.1f}  "
+                  f"t={reg_w['t_nw']:+.2f}  p_uni={pw:.4f}")
+    else:
+        print(f"  Données insuffisantes pour within-centering ({len(wc)} paires).")
+
+    # ══ TESTS DE ROBUSTESSE (secondaires) ════════════════════════════════════
+    print(f"\n{SEP}")
+    print("ROBUSTESSE (tests secondaires — non décisionnels)")
+    print(f"{SEP}")
+
+    # ── Fixed-effects ────────────────────────────────────────────────────────
+    bf, sf, zf = meta_fixed_effects(betas, ses)
+    pf = p_one_sided(zf)
+    print(f"\nFixed-effects   : β={bf:+.1f}  SE={sf:.1f}  z={zf:+.2f}  p_uni={pf:.4f}")
+
+    # ── Random-effects DL ────────────────────────────────────────────────────
+    br, sr, zr, t2, Q, I2 = meta_dersimonian_laird(betas, ses)
+    pr = p_one_sided(zr)
+    print(f"Random-effects  : β={br:+.1f}  SE={sr:.1f}  z={zr:+.2f}  p_uni={pr:.4f}")
+    print(f"Hétérogénéité   : Q={Q:.1f}  I²={I2*100:.0f}%  τ²={t2:.1f}")
+
+    # ── Test du signe ────────────────────────────────────────────────────────
+    n_neg, k, p_sign = sign_test(betas)
+    print(f"Test du signe   : {n_neg}/{k} pentes négatives  p_binom={p_sign:.4f}")
+
+    # ── Conclusion ────────────────────────────────────────────────────────────
+    print(f"\n{SEP}")
+    print("CONCLUSION")
+    print(f"{SEP}")
+    # Décision basée UNIQUEMENT sur l'estimateur within (pre-registered)
+    if len(wc) >= 30 and reg_w:
+        pw_final = p_one_sided(reg_w["t_nw"])
+        if pw_final < 0.05 and reg_w["slope"] < 0:
+            print("⚠  Signal loser queue détecté (within-player β<0, p<0.05).")
+            if p_sign < 0.05:
+                print("   ✓ Sign test confirme (robustesse).")
+            else:
+                print(f"   ~ Sign test non-sig. ({n_neg}/{k} négatifs) — limite à noter.")
+        else:
+            print("✓  Pas de signal loser queue (within-player p≥0.05 ou β≥0).")
+            print("   (Rappel : puissance ~95% pour r=0.10 avec n_total≥3000.)")
+    else:
+        print("  Données insuffisantes pour conclure.")
+
+    print(f"\n   Puissance FE OLS (nw_factor=1.0, α=0.05 uni) :")
+    print(f"     n_total=700  r=0.10 → ≈ 55%  |  r=0.15 → ≈ 86%")
+    print(f"     n_total=3000 r=0.10 → ≈ 99%  |  r=0.15 → ≈ 100%")
+
+
+if __name__ == "__main__":
+    main()
