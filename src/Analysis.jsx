@@ -1,4 +1,4 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useCallback } from "react";
 
 const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:8000";
 
@@ -163,6 +163,143 @@ function TimelineSVG({ timeline }) {
         <text x={W - PAD.r + 2} y={PAD.t + 8} fill={C.target} fontSize="8" fontFamily={MONO}>WR</text>
       )}
     </svg>
+  );
+}
+
+function getEpisodeForGame(gameIndex, episodeRanges) {
+  return episodeRanges?.find(ep => gameIndex >= ep.start && gameIndex <= ep.end) || null;
+}
+
+function TimelineView({ timeline, episodeRanges }) {
+  const [activeEpisode, setActiveEpisode] = useState(null);
+
+  const handleClick = useCallback((gameIndex) => {
+    const ep = getEpisodeForGame(gameIndex, episodeRanges);
+    if (!ep) return;
+    setActiveEpisode(prev =>
+      prev && prev.start === ep.start && prev.end === ep.end ? null : ep
+    );
+  }, [episodeRanges]);
+
+  if (!timeline || timeline.length === 0) return null;
+
+  const episodeGames = activeEpisode
+    ? timeline.filter(([idx]) => idx >= activeEpisode.start && idx <= activeEpisode.end)
+    : [];
+
+  return (
+    <div style={{ marginBottom: 20 }}>
+      <div style={{ fontSize: 10, fontWeight: 600, letterSpacing: "0.1em",
+        textTransform: "uppercase", color: C.mute, fontFamily: MONO, marginBottom: 8 }}>
+        Timeline des parties
+      </div>
+
+      <div style={{ display: "flex", gap: 2, flexWrap: "wrap" }}>
+        {timeline.map(([idx, , , win]) => {
+          const ep = getEpisodeForGame(idx, episodeRanges);
+          const isActive = activeEpisode && ep && ep.start === activeEpisode.start && ep.end === activeEpisode.end;
+          return (
+            <div
+              key={idx}
+              onClick={() => handleClick(idx)}
+              title={ep ? `Épisode ${ep.type?.toUpperCase() ?? "LQ"} — games ${ep.start}–${ep.end}` : `Game ${idx}`}
+              style={{
+                width: 14,
+                height: 14,
+                borderRadius: 3,
+                background: win ? C.fair : C.rig,
+                border: ep
+                  ? `2px solid ${isActive ? C.target : C.target + "99"}`
+                  : "2px solid transparent",
+                boxSizing: "border-box",
+                cursor: ep ? "pointer" : "default",
+                opacity: activeEpisode && !isActive && ep ? 0.45 : 1,
+                transition: "opacity .1s, border-color .1s",
+                flexShrink: 0,
+              }}
+            />
+          );
+        })}
+      </div>
+
+      {episodeRanges && episodeRanges.length > 0 && (
+        <div style={{ display: "flex", gap: 12, marginTop: 6, fontSize: 10, color: C.mute, fontFamily: MONO }}>
+          <span><span style={{ color: C.fair }}>■</span> victoire</span>
+          <span><span style={{ color: C.rig }}>■</span> défaite</span>
+          <span><span style={{ color: C.target }}>■</span> épisode LQ/WQ — cliquer pour détails</span>
+        </div>
+      )}
+
+      {activeEpisode && episodeGames.length > 0 && (
+        <div style={{
+          marginTop: 14,
+          background: C.paper,
+          border: `1px solid ${C.target}55`,
+          borderRadius: 10,
+          overflow: "hidden",
+        }}>
+          <div style={{
+            padding: "10px 14px",
+            background: `${C.target}12`,
+            borderBottom: `1px solid ${C.target}33`,
+            fontSize: 11,
+            fontWeight: 700,
+            fontFamily: MONO,
+            color: C.target,
+            letterSpacing: "0.05em",
+            textTransform: "uppercase",
+          }}>
+            Épisode {activeEpisode.type?.toUpperCase() ?? "LQ"} — games {activeEpisode.start} à {activeEpisode.end}
+          </div>
+          <div style={{ overflowX: "auto" }}>
+            <table style={{
+              width: "100%",
+              borderCollapse: "collapse",
+              fontSize: 11,
+              fontFamily: MONO,
+            }}>
+              <thead>
+                <tr style={{ background: C.paper }}>
+                  {["#", "Résultat", "Forme", "Équipe", "KDA", "Dmg"].map(h => (
+                    <th key={h} style={{
+                      padding: "6px 12px",
+                      textAlign: h === "#" ? "center" : "right",
+                      color: C.mute,
+                      fontWeight: 600,
+                      borderBottom: `1px solid ${C.dim}`,
+                      whiteSpace: "nowrap",
+                    }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {episodeGames.map(([idx, recent_wr, team_diff, win, kda, damage]) => (
+                  <tr key={idx} style={{ borderBottom: `1px solid ${C.dim}` }}>
+                    <td style={{ padding: "6px 12px", textAlign: "center", color: C.mute }}>{idx}</td>
+                    <td style={{ padding: "6px 12px", textAlign: "right", color: win ? C.fair : C.rig, fontWeight: 700 }}>
+                      {win ? "✓" : "✗"}
+                    </td>
+                    <td style={{ padding: "6px 12px", textAlign: "right", color: C.text }}>
+                      {recent_wr != null ? (recent_wr * 100).toFixed(0) + "%" : "—"}
+                    </td>
+                    <td style={{ padding: "6px 12px", textAlign: "right",
+                      color: team_diff != null && team_diff < -50 ? C.rig : team_diff != null && team_diff > 50 ? C.fair : C.text }}>
+                      {team_diff != null ? (team_diff > 0 ? "+" : "") + team_diff.toFixed(0) : "—"}
+                    </td>
+                    <td style={{ padding: "6px 12px", textAlign: "right", color: C.text }}>
+                      {kda != null ? kda.toFixed(1) : "—"}
+                    </td>
+                    <td style={{ padding: "6px 12px", textAlign: "right", color: C.text }}>
+                      {damage != null ? Math.round(damage).toLocaleString("fr-FR") : "—"}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -496,6 +633,10 @@ export default function Analysis() {
               </span>
             </div>
           </div>
+
+          {result.timeline && result.timeline.length > 0 && (
+            <TimelineView timeline={result.timeline} episodeRanges={result.episode_ranges} />
+          )}
 
           {result.scatter && result.scatter.length > 0 && (
             <div style={{ marginBottom: 20 }}>

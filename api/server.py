@@ -225,6 +225,33 @@ def analyze(req: AnalyzeRequest):
         slope_val = r_val = r2_val = se_nw_val = p_uni = None
 
     episodes   = find_episodes(valid_rows)
+
+    def _episode_ranges(rows, min_run=3):
+        """Retourne les plages de games suspectes (team trop faible)."""
+        td_vals = [r["team_diff"] for r in rows if r.get("team_diff") is not None]
+        if len(td_vals) < 5:
+            return []
+        td_m = sum(td_vals) / len(td_vals)
+        td_s = (sum((v - td_m)**2 for v in td_vals) / len(td_vals))**0.5 or 1
+        Z_TEAM = -1.5
+        ranges, run_start, run = [], None, 0
+        for r in rows:
+            td = r.get("team_diff")
+            zt = (td - td_m) / td_s if td is not None else None
+            if zt is not None and zt < Z_TEAM:
+                if run == 0:
+                    run_start = r["game_index"]
+                run += 1
+            else:
+                if run >= min_run:
+                    ranges.append({"start": run_start, "end": rows[rows.index(r)-1]["game_index"], "type": "lq"})
+                run = 0
+        if run >= min_run:
+            ranges.append({"start": run_start, "end": rows[-1]["game_index"], "type": "lq"})
+        return ranges
+
+    episode_ranges = _episode_ranges(valid_rows)
+
     wu         = wr_unfav(valid_rows)
     carry      = slope_by_carry(valid_rows)
     mtd        = mean_team_diff(valid_rows)
@@ -246,6 +273,10 @@ def analyze(req: AnalyzeRequest):
             round(r["recent_wr_10"], 3) if r.get("recent_wr_10") is not None else None,
             round(r["team_diff"], 1) if r.get("team_diff") is not None else None,
             r["win"],
+            r.get("my_kda", 0),
+            r.get("my_damage", 0),
+            r.get("my_vision", 0),
+            1 if r.get("team_diff") is not None and r.get("recent_wr_10") is not None else 0,
         ]
         for r in raw_rows
     ]
@@ -269,4 +300,5 @@ def analyze(req: AnalyzeRequest):
         "n_teamdep":     carry["n_teamdep"],
         "scatter":       scatter,
         "timeline":      timeline,
+        "episode_ranges": episode_ranges,
     }
