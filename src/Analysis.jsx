@@ -320,7 +320,7 @@ export default function Analysis() {
             type="text"
             value={riotId}
             onChange={e => setRiotId(e.target.value)}
-            placeholder="Pseudo#TAG"
+            placeholder="Ex : Pseudo#EUW"
             required
             disabled={loading}
             style={{
@@ -337,6 +337,9 @@ export default function Analysis() {
               opacity: loading ? 0.5 : 1,
             }}
           />
+          <div style={{ fontSize: 11, color: C.mute, marginTop: 4 }}>
+            Trouve ton Riot ID dans le client LoL → Profil → ton nom#tag
+          </div>
         </div>
 
         <div style={{ flex: "1 1 120px" }}>
@@ -387,7 +390,7 @@ export default function Analysis() {
 
         <div style={{ flex: "0 1 90px" }}>
           <label style={{ fontSize: 11, color: C.mute, display: "block", marginBottom: 5 }}>
-            Games (<span style={{ fontFamily: MONO }}>count</span>)
+            Nombre de games
           </label>
           <input
             type="number"
@@ -414,12 +417,12 @@ export default function Analysis() {
           type="submit"
           disabled={loading}
           style={{
-            padding: "10px 20px",
+            padding: "11px 26px",
             background: loading ? C.mute : C.target,
             color: C.ink,
             border: "none",
             borderRadius: 7,
-            fontSize: 13,
+            fontSize: 14,
             fontWeight: 700,
             cursor: loading ? "not-allowed" : "pointer",
             transition: "background .12s",
@@ -427,7 +430,7 @@ export default function Analysis() {
             whiteSpace: "nowrap",
           }}
         >
-          {loading ? "..." : "Analyser"}
+          {loading ? "Analyse en cours…" : "Analyser →"}
         </button>
       </form>
 

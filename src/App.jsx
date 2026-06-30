@@ -1293,7 +1293,7 @@ function NavBar() {
   const NAV = [
     { to: "/",           label: "La Théorie"  },
     { to: "/simulateur", label: "Simulateur"  },
-    { to: "/resultats",  label: "Résultats"   },
+    { to: "/resultats",  label: "Mon compte"  },
   ];
   return (
     <nav style={{
@@ -1402,6 +1402,10 @@ function TheoriePage() {
             padding: "9px 18px", background: C.target, color: C.ink,
             borderRadius: 7, fontSize: 13, fontWeight: 700, textDecoration: "none",
           }}>Explorer le simulateur →</Link>
+          <Link to="/resultats" style={{
+            padding: "9px 18px", background: C.fair, color: "#fff",
+            borderRadius: 7, fontSize: 13, fontWeight: 700, textDecoration: "none",
+          }}>Tester mon compte →</Link>
         </div>
 
       </div>
@@ -1609,7 +1613,6 @@ function SimulatorPage() {
 // ─────────────────────────────────────────────────────────────────────────────
 
 function ResultatsPage() {
-  const [showAnalysis, setShowAnalysis] = useState(false);
   const { players } = realData;
   const phase = players && players.length >= 10 ? "confirmatoire" : "pilote";
 
@@ -1632,20 +1635,16 @@ function ResultatsPage() {
           </p>
         </div>
 
-        {/* Analyser mes parties */}
-        <div style={{ marginBottom: 20 }}>
-          <button onClick={() => setShowAnalysis(v => !v)} style={{
-            padding: "10px 18px",
-            background: showAnalysis ? C.target + "20" : "transparent",
-            color: showAnalysis ? C.target : C.mute,
-            border: `1px solid ${showAnalysis ? C.target + "60" : C.dim}`,
-            borderRadius: 8, fontSize: 13, fontWeight: 600,
-            cursor: "pointer", transition: "all .12s",
-          }}>
-            {showAnalysis ? "Fermer l'analyse" : "Analyser mes parties →"}
-          </button>
+        {/* Analyser mon compte */}
+        <div style={{ marginBottom: 8 }}>
+          <div style={{ fontSize: 10, letterSpacing: "0.15em", color: C.mute, fontFamily: "monospace", marginBottom: 6 }}>
+            ANALYSER MON COMPTE
+          </div>
+          <p style={{ fontSize: 13, color: C.mute, margin: "0 0 14px" }}>
+            Entre ton Riot ID pour voir si ton matchmaking est neutre ou biaisé.
+          </p>
         </div>
-        {showAnalysis && <Analysis />}
+        <Analysis />
 
         {/* Données */}
         <RealDataSection />
