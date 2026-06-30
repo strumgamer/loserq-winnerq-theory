@@ -2,6 +2,16 @@ import React, { useState, useRef, useCallback } from "react";
 
 const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:8000";
 
+function useIsMobile(breakpoint = 640) {
+  const [mobile, setMobile] = React.useState(() => window.innerWidth < breakpoint);
+  React.useEffect(() => {
+    const fn = () => setMobile(window.innerWidth < breakpoint);
+    window.addEventListener("resize", fn);
+    return () => window.removeEventListener("resize", fn);
+  }, [breakpoint]);
+  return mobile;
+}
+
 const C = {
   target:  "#C89B0A",
   rig:     "#C4302A",
@@ -194,7 +204,7 @@ function TimelineView({ timeline, episodeRanges }) {
         Timeline des parties
       </div>
 
-      <div style={{ display: "flex", gap: 2, flexWrap: "wrap" }}>
+      <div style={{ display: "flex", gap: 2, flexWrap: "wrap", maxHeight: 80, overflowY: "auto" }}>
         {timeline.map(([idx, , , win]) => {
           const ep = getEpisodeForGame(idx, episodeRanges);
           const isActive = activeEpisode && ep && ep.start === activeEpisode.start && ep.end === activeEpisode.end;
@@ -349,6 +359,8 @@ export default function Analysis() {
   const [result,  setResult]  = useState(null);
   const [error,   setError]   = useState(null);
   const abortRef = useRef(null);
+  const [loadingStep, setLoadingStep] = useState(0);
+  const stepTimerRef = useRef(null);
 
   const platformByRegion = {
     europe:   ["euw1", "eun1", "tr1", "ru"],
@@ -375,6 +387,13 @@ export default function Analysis() {
     setLoading(true);
     setResult(null);
     setError(null);
+    setLoadingStep(0);
+    // Avance les étapes toutes les 35s pour simuler la progression
+    let step = 0;
+    stepTimerRef.current = setInterval(() => {
+      step = Math.min(step + 1, 2);
+      setLoadingStep(step);
+    }, 35000);
 
     const controller = new AbortController();
     abortRef.current = controller;
@@ -417,9 +436,13 @@ export default function Analysis() {
       }
     } finally {
       setLoading(false);
+      clearInterval(stepTimerRef.current);
+      setLoadingStep(0);
       abortRef.current = null;
     }
   };
+
+  const isMobile = useIsMobile();
 
   const hasSignal = result && result.p_uni < 0.05 && result.slope < 0;
 
@@ -448,7 +471,7 @@ export default function Analysis() {
         la régression <code style={{ color: C.target, fontFamily: MONO }}>team_diff ~ recent_wr</code>.
       </p>
 
-      <form onSubmit={handleSubmit} style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "flex-end" }}>
+      <form onSubmit={handleSubmit} style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "flex-end", flexDirection: isMobile ? "column" : "row" }}>
         <div style={{ flex: "2 1 200px" }}>
           <label style={{ fontSize: 11, color: C.mute, display: "block", marginBottom: 5 }}>
             Riot ID (ex : Pseudo#EUW)
@@ -495,6 +518,7 @@ export default function Analysis() {
               fontSize: 13,
               cursor: loading ? "not-allowed" : "pointer",
               opacity: loading ? 0.5 : 1,
+              minHeight: isMobile ? 40 : undefined,
             }}
           >
             <option value="europe">europe</option>
@@ -519,6 +543,7 @@ export default function Analysis() {
               fontSize: 13,
               cursor: loading ? "not-allowed" : "pointer",
               opacity: loading ? 0.5 : 1,
+              minHeight: isMobile ? 40 : undefined,
             }}
           >
             {platforms.map(p => <option key={p} value={p}>{p}</option>)}
@@ -572,9 +597,54 @@ export default function Analysis() {
       </form>
 
       {loading && (
-        <div style={{ marginTop: 20, display: "flex", alignItems: "center", color: C.mute, fontSize: 13 }}>
-          <Spinner />
-          Analyse en cours... (~2–5 min selon le cache)
+        <div style={{ marginTop: 24, padding: "18px 20px", background: "#FDFCFA", border: `1px solid ${C.dim}`, borderRadius: 12 }}>
+          {[
+            { label: "Résolution du compte Riot…",   detail: "Vérification du Riot ID" },
+            { label: "Récupération des parties…",     detail: `Téléchargement jusqu’à ${count} games` },
+            { label: "Calcul des statistiques…",      detail: "Régression + test unilatéral" },
+          ].map((s, i) => {
+            const done    = i < loadingStep;
+            const active  = i === loadingStep;
+            return (
+              <div key={i} style={{
+                display: "flex", alignItems: "center", gap: 12,
+                padding: "8px 0",
+                opacity: done ? 0.45 : active ? 1 : 0.3,
+                borderBottom: i < 2 ? `1px solid ${C.dim}` : "none",
+              }}>
+                <div style={{
+                  width: 20, height: 20, borderRadius: "50%", flexShrink: 0,
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  background: done ? C.fair + "22" : active ? C.target + "22" : C.dim + "44",
+                  border: `1.5px solid ${done ? C.fair : active ? C.target : C.dim}`,
+                }}>
+                  {done
+                    ? <span style={{ fontSize: 11, color: C.fair, fontWeight: 700 }}>✓</span>
+                    : active
+                    ? <span style={{
+                        width: 8, height: 8, borderRadius: "50%",
+                        background: C.target, display: "block",
+                        animation: "spin 1s linear infinite",
+                      }} />
+                    : <span style={{ fontSize: 9, color: C.mute }}>{i + 1}</span>
+                  }
+                </div>
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: active ? 600 : 400, color: active ? C.text : C.mute }}>
+                    {s.label}
+                  </div>
+                  {active && (
+                    <div style={{ fontSize: 11, color: C.mute, marginTop: 1, fontFamily: MONO }}>
+                      {s.detail}
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+          <div style={{ marginTop: 12, fontSize: 11, color: C.mute, fontFamily: MONO }}>
+            ⏱ 2–5 min selon le cache Riot · Ne pas fermer la page
+          </div>
         </div>
       )}
 
@@ -657,11 +727,12 @@ export default function Analysis() {
             <div style={{ marginBottom: 20 }}>
               <div style={{ fontSize: 10, fontWeight: 600, letterSpacing: "0.1em",
                 textTransform: "uppercase", color: C.mute, fontFamily: MONO, marginBottom: 8 }}>
-                Scatter · team_diff ~ recent_wr_10
+                Écart d'équipe selon ta forme récente
               </div>
               <div style={{ display: "flex", gap: 8, fontSize: 10, color: C.mute, fontFamily: MONO, marginBottom: 6 }}>
                 <span><span style={{ color: C.fair }}>■</span> victoire</span>
                 <span><span style={{ color: C.rig }}>■</span> défaite</span>
+                <span style={{ marginLeft: 4, color: C.mute }}>· axe X = ta forme récente · axe Y = force de ton équipe vs l'adversaire</span>
               </div>
               <ScatterSVG scatter={result.scatter} slope={result.slope ?? 0} />
             </div>
@@ -671,12 +742,12 @@ export default function Analysis() {
             <div style={{ marginBottom: 20 }}>
               <div style={{ fontSize: 10, fontWeight: 600, letterSpacing: "0.1em",
                 textTransform: "uppercase", color: C.mute, fontFamily: MONO, marginBottom: 8 }}>
-                Timeline · team_diff par game
+                Force de ton équipe partie par partie
               </div>
               <div style={{ display: "flex", gap: 12, fontSize: 10, color: C.mute, fontFamily: MONO, marginBottom: 6 }}>
-                <span><span style={{ color: C.fair }}>●</span> victoire (team_diff)</span>
-                <span><span style={{ color: C.rig }}>●</span> défaite (team_diff)</span>
-                <span><span style={{ color: C.target }}>─</span> recent_wr_10</span>
+                <span><span style={{ color: C.fair }}>●</span> victoire</span>
+                <span><span style={{ color: C.rig }}>●</span> défaite</span>
+                <span><span style={{ color: C.target }}>─</span> forme récente</span>
               </div>
               <TimelineSVG timeline={result.timeline} />
             </div>
@@ -693,8 +764,8 @@ export default function Analysis() {
             color: C.mute,
             lineHeight: 1.65,
           }}>
-            Ce test porte sur le rang public (proxy MMR). Ce n'est pas le MMR interne réel de Riot.
-            Une pente négative significative est compatible avec H1 mais pas conclusive.
+            Ce test utilise le rang visible (pas le MMR interne de Riot).
+            Un signal détecté est compatible avec la loser queue — mais ne prouve pas que Riot le fait intentionnellement.
           </div>
         </div>
       )}

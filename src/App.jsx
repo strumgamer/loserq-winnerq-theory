@@ -649,67 +649,70 @@ function RealDataSection({ poolSpread = 300 }) {
 
       {/* ── Vue tableau ── */}
       {view === "table" && (
-        <div style={{ overflowX: "auto" }}>
-          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
-            <thead>
-              <tr style={{ borderBottom: `1px solid ${C.dim}` }}>
-                {["Joueur", "N", "WR", "Pente (forme)", "Intercept (biais)", "R²", "Ép.", "WR déf.", "Verdict"].map(h => (
-                  <th key={h} style={{
-                    padding: "6px 10px", textAlign: h === "Joueur" ? "left" : "right",
-                    fontWeight: 500, fontSize: 11, color: C.mute,
-                    fontFamily: MONO, letterSpacing: "0.05em",
-                  }}>{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {players.map((p, i) => {
-                const v = verdict(p.slope);
-                const interCol = p.mean_team_diff != null && p.mean_team_diff < -50 ? C.rig
-                               : p.mean_team_diff != null && p.mean_team_diff < -25 ? C.target
-                               : C.mute;
-                return (
-                  <tr key={p.id} style={{
-                    borderBottom: `1px solid ${C.dim}`,
-                    background: i % 2 === 0 ? "transparent" : "rgba(0,0,0,0.025)",
-                  }}>
-                    <td style={{ padding: "10px 10px", color: C.text, fontWeight: 500 }}>{p.id}</td>
-                    <td style={{ padding: "10px 10px", color: C.mute, textAlign: "right", fontFamily: MONO }}>{p.n}</td>
-                    <td style={{ padding: "10px 10px", textAlign: "right", fontFamily: MONO, color: C.text }}>{p.wr}%</td>
-                    <td style={{ padding: "10px 10px", textAlign: "right", fontFamily: MONO,
-                      color: p.slope < -80 ? C.rig : p.slope < -30 ? C.target : C.fair,
-                      fontWeight: 700 }}>
-                      {p.slope != null ? (p.slope > 0 ? "+" : "") + p.slope.toFixed(0) : "—"}
-                    </td>
-                    <td style={{ padding: "10px 10px", textAlign: "right", fontFamily: MONO,
-                      color: interCol, fontWeight: interCol !== C.mute ? 700 : 400 }}>
-                      {p.mean_team_diff != null ? (p.mean_team_diff > 0 ? "+" : "") + p.mean_team_diff.toFixed(0) : "—"}
-                    </td>
-                    <td style={{ padding: "10px 10px", textAlign: "right", fontFamily: MONO, color: C.mute }}>
-                      {p.r2 != null ? (p.r2 * 100).toFixed(1) + "%" : "—"}
-                    </td>
-                    <td style={{ padding: "10px 10px", textAlign: "right", fontFamily: MONO,
-                      color: p.episodes > 3 ? C.rig : C.mute }}>
-                      {p.episodes}
-                    </td>
-                    <td style={{ padding: "10px 10px", textAlign: "right", fontFamily: MONO,
-                      color: p.wr_unfav != null && p.wr_unfav < 45 ? C.rig : C.fair }}>
-                      {p.wr_unfav != null ? p.wr_unfav + "%" : "—"}
-                    </td>
-                    <td style={{ padding: "10px 10px", textAlign: "right" }}>
-                      <span style={{
-                        fontSize: 11, color: v.color, fontWeight: 600,
-                        background: v.color + "18", borderRadius: 4, padding: "2px 7px",
-                      }}>{v.label}</span>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-          <div style={{ marginTop: 10, fontSize: 11, color: C.mute, lineHeight: 1.6 }}>
-            <b style={{ color: C.text }}>Pente</b> : corrélation forme récente → équipe assignée (H1 loser queue : négatif).{" "}
-            <b style={{ color: C.text }}>Intercept</b> : team_diff moyen indépendamment de la forme (H1 challenge mode smurf : négatif permanent).
+        <div>
+          {/* Légende */}
+          <div style={{
+            marginBottom: 14, padding: "10px 14px",
+            background: C.paper, borderRadius: 8,
+            fontSize: 12, color: C.mute, lineHeight: 1.65,
+            border: `1px solid ${C.dim}`,
+          }}>
+            <span style={{ color: C.rig }}>●</span> <b style={{ color: C.text }}>Signal</b> = quand ce joueur était en forme, ses alliés étaient plus faibles que ses ennemis.{"  "}
+            <span style={{ color: C.fair }}>●</span> <b style={{ color: C.text }}>Honnête</b> = aucune corrélation détectée.
+          </div>
+
+          <div style={{ overflowX: "auto" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+              <thead>
+                <tr style={{ borderBottom: `1px solid ${C.dim}` }}>
+                  {[
+                    { label: "Joueur",  align: "left"  },
+                    { label: "Games",   align: "right" },
+                    { label: "WR",      align: "right" },
+                    { label: "Pente",   align: "right" },
+                    { label: "Verdict", align: "right" },
+                  ].map(({ label, align }) => (
+                    <th key={label} style={{
+                      padding: "6px 10px", textAlign: align,
+                      fontWeight: 500, fontSize: 11, color: C.mute,
+                      fontFamily: MONO, letterSpacing: "0.05em",
+                    }}>{label}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {players.map((p, i) => {
+                  const v = verdict(p.slope);
+                  return (
+                    <tr key={p.id} style={{
+                      borderBottom: `1px solid ${C.dim}`,
+                      background: i % 2 === 0 ? "transparent" : "rgba(0,0,0,0.03)",
+                    }}>
+                      <td style={{ padding: "10px 10px", color: C.text, fontWeight: 500 }}>{p.id}</td>
+                      <td style={{ padding: "10px 10px", color: C.mute, textAlign: "right", fontFamily: MONO }}>{p.n}</td>
+                      <td style={{ padding: "10px 10px", textAlign: "right", fontFamily: MONO, color: C.text }}>{p.wr}%</td>
+                      <td style={{ padding: "10px 10px", textAlign: "right", fontFamily: MONO,
+                        color: p.slope < -80 ? C.rig : p.slope < -30 ? C.target : C.fair,
+                        fontWeight: 700 }}>
+                        {p.slope != null ? (p.slope > 0 ? "+" : "") + p.slope.toFixed(0) : "—"}
+                      </td>
+                      <td style={{ padding: "10px 10px", textAlign: "right" }}>
+                        <span style={{
+                          fontSize: 11, color: v.color, fontWeight: 600,
+                          background: v.color + "18", borderRadius: 20, padding: "3px 10px",
+                        }}>{v.label}</span>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          <div style={{ marginTop: 12, fontSize: 11, color: C.mute, lineHeight: 1.6 }}>
+            <b style={{ color: C.text }}>Pente</b> : corrélation entre la forme récente et l'écart d'équipe.
+            Négatif = équipe plus faible quand le joueur est en forme (loser queue).
+            Positif = l'inverse. Colonnes avancées (R², Ép., biais) disponibles via l'onglet Scatter.
           </div>
         </div>
       )}
@@ -1077,10 +1080,29 @@ function NavBar() {
         height: 50, padding: "0 20px",
       }}>
         <Link to="/" style={{
-          fontSize: 11, fontWeight: 700, fontFamily: MONO,
-          color: C.mute, letterSpacing: "0.14em",
+          display: "flex", alignItems: "center", gap: 6,
           textDecoration: "none", marginRight: 14, flexShrink: 0,
-        }}>LQ/WQ</Link>
+          userSelect: "none",
+        }}>
+          <span style={{
+            display: "inline-flex", alignItems: "center",
+            background: C.text, borderRadius: 6,
+            padding: "2px 7px 2px 6px", gap: 1,
+          }}>
+            <span style={{ fontSize: 11, fontWeight: 800, fontFamily: MONO, color: C.rig, letterSpacing: "0.02em" }}>L</span>
+            <span style={{ fontSize: 11, fontWeight: 800, fontFamily: MONO, color: "#FDFCFA", letterSpacing: "0.02em" }}>Q</span>
+            <span style={{ fontSize: 11, fontWeight: 400, fontFamily: MONO, color: "#FDFCFA44", margin: "0 2px" }}>/</span>
+            <span style={{ fontSize: 11, fontWeight: 800, fontFamily: MONO, color: C.fair, letterSpacing: "0.02em" }}>W</span>
+            <span style={{ fontSize: 11, fontWeight: 800, fontFamily: MONO, color: "#FDFCFA", letterSpacing: "0.02em" }}>Q</span>
+          </span>
+          <span style={{
+            fontSize: 10, fontWeight: 500, fontFamily: MONO,
+            color: C.mute, letterSpacing: "0.06em",
+            display: "none",
+          }}
+            className="nav-wordmark-sub"
+          >THEORY</span>
+        </Link>
         {NAV.map(({ to, label }) => {
           const active = loc.pathname === to;
           return (
@@ -1116,7 +1138,7 @@ function TheoriePage() {
           <div style={{ fontSize: 10, letterSpacing: "0.15em", color: C.mute, fontFamily: MONO, marginBottom: 10 }}>
             MATCHMAKING · BANC D'ESSAI STATISTIQUE
           </div>
-          <h1 style={{ fontSize: 32, fontWeight: 800, margin: "0 0 10px", lineHeight: 1.1, letterSpacing: "-0.5px" }}>
+          <h1 style={{ fontSize: 32, fontWeight: 800, margin: "0 0 10px", lineHeight: 1.1, letterSpacing: "-0.5px", fontFamily: SANS }}>
             La loser queue existe-t-elle ?
           </h1>
           <p style={{ color: C.mute, fontSize: 14, lineHeight: 1.65, maxWidth: 520, margin: 0 }}>
@@ -1126,6 +1148,22 @@ function TheoriePage() {
             </Link>{" "}
             révèlent. Suis les étapes dans l'ordre.
           </p>
+        </div>
+
+        {/* Accroche émotionnelle */}
+        <div style={{
+          margin: "0 0 36px",
+          padding: "18px 22px",
+          background: "rgba(200,155,10,0.07)",
+          border: `1px solid rgba(200,155,10,0.2)`,
+          borderRadius: 12,
+          fontSize: 14, lineHeight: 1.7, color: C.text,
+        }}>
+          Tu viens de perdre 5 games de suite en jouant bien.{" "}
+          <b>Est-ce que c'est ta faute, ou le jeu t'a assigné des équipes plus faibles ?</b>
+          <span style={{ display: "block", marginTop: 6, fontSize: 13, color: C.mute }}>
+            Ce site répond à cette question avec de vraies données Riot — pas avec du ressenti.
+          </span>
         </div>
 
         {/* 01 */}
@@ -1141,6 +1179,20 @@ function TheoriePage() {
         {/* 02 */}
         <Step n={2} title="Le test décisif"
           sub="Ce que les courbes cachent — le nuage de points révèle le signal" />
+        <div style={{
+          margin: "0 0 16px",
+          padding: "14px 18px",
+          background: C.paper,
+          border: `1px solid ${C.dim}`,
+          borderLeft: `3px solid ${C.target}`,
+          borderRadius: "0 8px 8px 0",
+          fontSize: 13, color: C.mute, lineHeight: 1.65,
+        }}>
+          <b style={{ color: C.text }}>Comment lire ce graphe :</b>{" "}
+          si le jeu te truque, quand tu gagnes beaucoup (droite sur l'axe X),
+          tes alliés devraient être plus faibles (valeur négative sur l'axe Y).
+          Une droite qui penche vers le bas = signature loser queue.
+        </div>
         <AlwaysOnScatterComparison {...BASE} seed={seed} />
         <Callout color={C.rig}>
           <b>Moteur truqué :</b> pente nettement négative — quand le joueur est en forme,
