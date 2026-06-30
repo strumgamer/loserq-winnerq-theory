@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from "react";
-import { Routes, Route, Link, useLocation } from "react-router-dom";
+import { Routes, Route, Link, useLocation, useNavigate } from "react-router-dom";
 import realData from "./results/data.json";
 import Analysis from "./Analysis.jsx";
 import logoSvg from "./logo.svg";
@@ -1119,6 +1119,7 @@ function LogoOverlay({ open, onClose }) {
 
 function NavBar() {
   const loc = useLocation();
+  const navigate = useNavigate();
   const [logoOpen, setLogoOpen] = React.useState(false);
   const NAV = [
     { to: "/",           label: "La Théorie"  },
@@ -1140,7 +1141,7 @@ function NavBar() {
           height: 50, padding: "0 20px",
         }}>
           <button
-            onClick={(e) => { e.preventDefault(); setLogoOpen(o => !o); }}
+            onClick={(e) => { e.preventDefault(); setLogoOpen(o => !o); navigate("/"); }}
             style={{
               background: 'none', border: 'none', padding: 0,
               cursor: 'pointer', marginRight: 14, flexShrink: 0,
