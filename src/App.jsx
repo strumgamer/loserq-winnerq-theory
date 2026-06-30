@@ -23,7 +23,7 @@ const C = {
 };
 
 const MONO = "ui-monospace,Menlo,'SF Mono',monospace";
-const SANS = "-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif";
+const SANS = "'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // SIMULATION
@@ -159,10 +159,12 @@ function Card({ children, style = {} }) {
   return (
     <div style={{
       background: C.card,
-      border: "1px solid rgba(0,0,0,0.06)",
+      border: `1px solid ${C.dim}`,
       borderRadius: 14,
       padding: "24px",
       marginTop: 16,
+      boxShadow: "0 1px 4px rgba(0,0,0,0.06), 0 0 0 0.5px rgba(0,0,0,0.03)",
+      fontFamily: SANS,
       ...style,
     }}>
       {children}
@@ -1021,239 +1023,6 @@ function CarryComparison({ engine, heroMMR, poolSpread, rigStrength, seed, games
   );
 }
 
-const DIFF_LABELS = {
-  easy:   { label: "Facile",    desc: "Biais évident",              rig: 420 },
-  medium: { label: "Moyen",     desc: "Biais modéré",               rig: 200 },
-  hard:   { label: "Difficile", desc: "Biais subtil — comme en vrai", rig: 75 },
-};
-
-function BlindTest({ heroMMR, poolSpread, carryScore }) {
-  const [phase,      setPhase]      = useState("idle");   // idle | playing | revealed
-  const [round,      setRound]      = useState(null);
-  const [guess,      setGuess]      = useState(null);
-  const [score,      setScore]      = useState({ correct: 0, total: 0 });
-  const [difficulty, setDifficulty] = useState("medium");
-  const [showHint,   setShowHint]   = useState(false);
-
-  const deal = () => {
-    const engine = Math.random() < 0.5 ? "rig" : "fair";
-    const seed   = Math.floor(Math.random() * 1e9);
-    const rs     = DIFF_LABELS[difficulty].rig;
-    const sim    = simulate({ engine, games: 50, heroMMR, poolSpread, rigStrength: rs, carryScore, seed });
-    setRound({ engine, sim });
-    setGuess(null);
-    setPhase("playing");
-    setShowHint(false);
-  };
-
-  const submit = g => {
-    if (phase !== "playing") return;
-    setGuess(g);
-    setPhase("revealed");
-    setScore(s => ({ correct: s.correct + (g === round.engine ? 1 : 0), total: s.total + 1 }));
-  };
-
-  const pct = score.total ? Math.round(score.correct / score.total * 100) : 0;
-  const eps  = round ? findEpisodeRanges(round.sim.results) : [];
-
-  const slopeColor = round
-    ? (round.sim.reg.slope < -80 ? C.rig : round.sim.reg.slope < -30 ? C.target : C.fair)
-    : C.mute;
-
-  const slopeVerdict = round
-    ? (round.sim.reg.slope < -80
-        ? "Pente très négative — signe fort de ciblage"
-        : round.sim.reg.slope < -30
-        ? "Pente légèrement négative — signal ambigu"
-        : "Pente ≈ 0 — matchmaking neutre")
-    : "";
-
-  return (
-    <Card>
-      <Eyebrow>Épreuve — double aveugle</Eyebrow>
-      <div style={{ fontWeight: 700, fontSize: 18, marginBottom: 10 }}>Devine le moteur</div>
-
-      {/* Sélecteur de difficulté */}
-      <div style={{ display: "flex", gap: 6, marginBottom: 16, alignItems: "center", flexWrap: "wrap" }}>
-        {Object.entries(DIFF_LABELS).map(([k, { label, desc }]) => (
-          <button key={k} onClick={() => { setDifficulty(k); if (phase !== "idle") setPhase("idle"); }}
-            style={{
-              padding: "5px 13px",
-              background: difficulty === k ? C.dim : "transparent",
-              color: difficulty === k ? C.text : C.mute,
-              border: `1px solid ${difficulty === k ? C.dim : "transparent"}`,
-              borderRadius: 6, fontSize: 11, fontWeight: difficulty === k ? 600 : 400,
-              cursor: "pointer",
-            }}>{label}</button>
-        ))}
-        <span style={{ fontSize: 11, color: C.mute, marginLeft: 2 }}>
-          — {DIFF_LABELS[difficulty].desc}
-        </span>
-      </div>
-
-      {/* ── IDLE ── */}
-      {phase === "idle" && (
-        <>
-          <p style={{ color: C.mute, fontSize: 13, lineHeight: 1.6, margin: "0 0 18px", maxWidth: 520 }}>
-            50 games simulées, moteur secret. Observe les résultats et devine.{" "}
-            <b style={{ color: C.text }}>La pente ne sera révélée qu'après ton choix.</b>
-          </p>
-          <button onClick={deal} style={{
-            padding: "12px 22px", background: C.target, color: C.ink,
-            border: "none", borderRadius: 8, fontSize: 14, fontWeight: 700, cursor: "pointer",
-          }}>Distribuer une manche →</button>
-        </>
-      )}
-
-      {/* ── PLAYING ── */}
-      {phase === "playing" && round && (
-        <div>
-          <p style={{ color: C.mute, fontSize: 13, lineHeight: 1.5, margin: "0 0 12px" }}>
-            Observe les séries, le win-rate, les games suspectes.
-            <b style={{ color: C.text }}> La pente est masquée — vote d'abord.</b>
-          </p>
-
-          <div style={{ fontSize: 11, color: C.mute, marginBottom: 8, fontFamily: MONO }}>
-            <span style={{ color: C.fair }}>■ victoire</span>{"  "}
-            <span style={{ color: C.rig }}>■ défaite</span>{"  "}
-            <span style={{ color: C.target }}>◈ épisode suspect</span>
-          </div>
-          <StreakStrip results={round.sim.results} episodeRanges={eps} />
-
-          {/* Stats — pente masquée */}
-          <div style={{ display: "flex", gap: 24, marginTop: 16, flexWrap: "wrap", alignItems: "flex-end" }}>
-            {[
-              { label: "Win-rate",          value: `${round.sim.winRate.toFixed(0)}%` },
-              { label: "Défaites max d'affilée", value: round.sim.maxLoss },
-              { label: "Épisodes suspects", value: round.sim.episodes },
-            ].map(({ label, value }) => (
-              <div key={label}>
-                <div style={{ fontSize: 24, fontWeight: 700, fontFamily: MONO, color: C.text, lineHeight: 1 }}>
-                  {value}
-                </div>
-                <div style={{ fontSize: 11, color: C.mute, marginTop: 4 }}>{label}</div>
-              </div>
-            ))}
-
-            {/* Pente floue — teaser */}
-            <div style={{ position: "relative" }}>
-              <div style={{ fontSize: 24, fontWeight: 700, fontFamily: MONO, color: C.target, lineHeight: 1, filter: "blur(6px)", userSelect: "none" }}>
-                {Math.round(round.sim.reg.slope)}
-              </div>
-              <div style={{ fontSize: 11, color: C.mute, marginTop: 4 }}>Pente (après le vote)</div>
-            </div>
-          </div>
-
-          {/* Indice scatter */}
-          <div style={{ marginTop: 16 }}>
-            {!showHint ? (
-              <button onClick={() => setShowHint(true)} style={{
-                padding: "6px 13px", background: "transparent",
-                color: C.mute, border: `1px solid ${C.dim}`,
-                borderRadius: 6, fontSize: 11, cursor: "pointer",
-              }}>
-                Voir le nuage de points (indice sans la droite)
-              </button>
-            ) : (
-              <>
-                <div style={{ fontSize: 11, color: C.mute, marginBottom: 6 }}>
-                  Indice — nuage forme récente × écart d'équipe (droite masquée)
-                </div>
-                <ScatterPlot scatterPoints={round.sim.scatterPoints}
-                  reg={round.sim.reg} poolSpread={poolSpread} showReg={false} />
-              </>
-            )}
-          </div>
-
-          {/* Boutons vote */}
-          <div style={{ display: "flex", gap: 8, marginTop: 20 }}>
-            {[["rig", "Truqué", C.rig], ["fair", "Honnête", C.fair]].map(([k, l, c]) => (
-              <button key={k} onClick={() => submit(k)} style={{
-                flex: 1, padding: "13px",
-                background: "transparent", color: c,
-                border: `1px solid ${c}66`,
-                borderRadius: 8, fontSize: 14, fontWeight: 600, cursor: "pointer",
-                transition: "background .1s",
-              }}>{l}</button>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* ── REVEALED ── */}
-      {phase === "revealed" && round && (
-        <div>
-          {/* Résultat */}
-          <div style={{
-            padding: "14px 18px", borderRadius: 10, marginBottom: 18,
-            background: guess === round.engine ? "rgba(26,143,137,0.1)" : "rgba(196,48,42,0.1)",
-            borderLeft: `3px solid ${guess === round.engine ? C.fair : C.rig}`,
-          }}>
-            <div style={{ fontSize: 16, fontWeight: 700, color: guess === round.engine ? C.fair : C.rig, marginBottom: 4 }}>
-              {guess === round.engine ? "✓ Bonne réponse" : "✗ Raté"}
-            </div>
-            <div style={{ fontSize: 13, color: C.mute }}>
-              Moteur :{" "}
-              <b style={{ color: round.engine === "rig" ? C.rig : C.fair }}>
-                {round.engine === "rig" ? "truqué" : "honnête"}
-              </b>
-              {guess !== round.engine && (
-                <span> — tu as voté <b style={{ color: guess === "rig" ? C.rig : C.fair }}>
-                  {guess === "rig" ? "truqué" : "honnête"}
-                </b></span>
-              )}
-            </div>
-          </div>
-
-          {/* Scatter révélé avec droite + explication */}
-          <div style={{ fontSize: 12, color: C.text, fontWeight: 600, marginBottom: 6 }}>
-            La pente révélée —{" "}
-            <span style={{ fontFamily: MONO, color: slopeColor, fontSize: 15 }}>
-              {round.sim.reg.slope.toFixed(0)}
-            </span>
-          </div>
-          <ScatterPlot scatterPoints={round.sim.scatterPoints}
-            reg={round.sim.reg} poolSpread={poolSpread} showReg={true} />
-          <div style={{ marginTop: 8, padding: "10px 14px", background: slopeColor + "12", borderRadius: 7, fontSize: 12, color: C.mute, lineHeight: 1.6 }}>
-            <b style={{ color: slopeColor }}>
-              {round.engine === "rig" ? "Truqué" : "Honnête"} · pente {round.sim.reg.slope.toFixed(0)}
-            </b>
-            {" — "}{slopeVerdict}.{" "}
-            {round.engine === "rig"
-              ? "En forme → équipe plus faible : la droite penche vers le bas."
-              : "Aucune corrélation entre ta forme et la force de ton équipe."}
-          </div>
-
-          {/* Score + suite */}
-          <div style={{ marginTop: 18, display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-            <div>
-              <span style={{ fontSize: 28, fontWeight: 700, fontFamily: MONO, color: C.text }}>
-                {score.correct}/{score.total}
-              </span>
-              <span style={{ fontSize: 13, color: C.mute, marginLeft: 10 }}>
-                bonnes réponses · {pct}%
-              </span>
-            </div>
-            <button onClick={deal} style={{
-              padding: "10px 20px", background: C.target, color: C.ink,
-              border: "none", borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: "pointer",
-            }}>Manche suivante →</button>
-          </div>
-
-          {score.total >= 4 && (
-            <p style={{ fontSize: 12, color: C.mute, lineHeight: 1.65, marginTop: 12 }}>
-              {pct <= 55
-                ? `${pct}% après ${score.total} manches — autour du hasard. C'est exactement le point : le ressenti ne distingue pas les deux moteurs. Seule la pente le peut.`
-                : pct <= 70
-                ? `${pct}% — plutôt bien. Tu t'appuies probablement sur le nuage de points ? La pente est l'indicateur le plus fiable.`
-                : `${pct}% — excellent. Si tu te guides à la pente, tu réinventes le test décisif.`}
-            </p>
-          )}
-        </div>
-      )}
-    </Card>
-  );
-}
 
 // Bandeau méthodologie — sobre, 3 colonnes
 function MethodologyBanner() {
@@ -1366,22 +1135,12 @@ function TheoriePage() {
         <Callout color={C.fair}>
           Les deux win-rates convergent vers 50%, les séries de défaites ont la même longueur.{" "}
           <b>Impossible de dire laquelle est truquée</b> — c'est tout le piège.
-          Le ressenti n'est pas un test.
+          Le ressenti ne distingue pas les deux moteurs. Il faut un test différent.
         </Callout>
 
         {/* 02 */}
-        <Step n={2} title="Prouve-le toi-même"
-          sub="50 games simulées, moteur secret — peux-tu le deviner ?" />
-        <BlindTest heroMMR={BASE.heroMMR} poolSpread={BASE.poolSpread} carryScore={BASE.carryScore} />
-        <Callout color={C.target}>
-          La plupart des joueurs stagnent autour de{" "}
-          <b>50% de bonnes réponses</b> — exactement le hasard pur.
-          Il faut un test différent, pas une intuition.
-        </Callout>
-
-        {/* 03 */}
-        <Step n={3} title="Le test décisif"
-          sub="Ce que les courbes cachent — un nuage de points révèle le signal" />
+        <Step n={2} title="Le test décisif"
+          sub="Ce que les courbes cachent — le nuage de points révèle le signal" />
         <AlwaysOnScatterComparison {...BASE} seed={seed} />
         <Callout color={C.rig}>
           <b>Moteur truqué :</b> pente nettement négative — quand le joueur est en forme,
@@ -1456,9 +1215,7 @@ function SimulatorPage() {
             Explorer les deux moteurs
           </h2>
           <p style={{ fontSize: 13, color: C.mute, lineHeight: 1.6, maxWidth: 520, margin: 0 }}>
-            Bascule entre truqué et honnête, ajuste les paramètres, lance des simulations en masse.
-            Les paramètres affectent également le BlindTest sur{" "}
-            <Link to="/" style={{ color: C.mute, textDecoration: "underline", textDecorationColor: C.dim }}>La Théorie</Link>.
+            Bascule entre truqué et honnête pour visualiser les deux moteurs en temps réel.
           </p>
         </div>
 
@@ -1530,52 +1287,6 @@ function SimulatorPage() {
         <CarryComparison engine={engine} heroMMR={heroMMR} poolSpread={poolSpread}
           rigStrength={rigStrength} seed={seed} games={games} />
 
-        {/* Batch */}
-        <Card>
-          <Eyebrow>Distribution sur N simulations</Eyebrow>
-          <p style={{ fontSize: 12, color: C.mute, margin: "0 0 16px", lineHeight: 1.5 }}>
-            Lance N fois la simulation. Les <b style={{ color: C.text }}>pentes de régression</b> sont l'indicateur le plus décisif.
-          </p>
-          <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
-            <button onClick={() => {
-              setBatch(batchSimulate({ engine, games, heroMMR, poolSpread, rigStrength, carryScore, seed }, runs));
-              setBatchEngine(engine);
-            }} style={{
-              padding: "10px 18px", background: color, color: C.ink,
-              border: "none", borderRadius: 7, fontSize: 13, fontWeight: 700, cursor: "pointer",
-            }}>▶ Lancer {runs} simulations</button>
-            <div style={{ flex: 1, minWidth: 160 }}>
-              <input type="range" min={20} max={1000} step={20} value={runs}
-                onChange={e => setRuns(Number(e.target.value))}
-                style={{ width: "100%", accentColor: C.target }} />
-              <div style={{ fontSize: 11, color: C.mute, marginTop: 2, fontFamily: MONO }}>
-                {runs} runs · {(runs * games).toLocaleString()} parties
-              </div>
-            </div>
-          </div>
-          {batch && (
-            <div style={{ marginTop: 18 }}>
-              <div style={{ fontSize: 11, color: C.mute, marginBottom: 12, fontFamily: MONO }}>
-                {runs} runs ·{" "}
-                <span style={{ color: batchEngine === "rig" ? C.rig : C.fair }}>
-                  moteur {batchEngine === "rig" ? "truqué" : "honnête"}
-                </span>{" · ligne pointillée = moyenne"}
-              </div>
-              {[
-                { label: "Win-rate final", values: batch.winRates, min: 35, max: 65, bins: 24, color: batchEngine === "rig" ? C.rig : C.fair, unit: "%" },
-                { label: "Pentes de régression — à gauche de 0 = signature loser queue", values: batch.slopes, min: -400, max: 200, bins: 24, color: C.target, unit: "", highlightNeg: true },
-                { label: "Série de victoires max", values: batch.maxWins, min: 0, max: 20, bins: 20, color: C.fair, unit: "" },
-                { label: "Série de défaites max", values: batch.maxLosses, min: 0, max: 20, bins: 20, color: C.rig, unit: "" },
-              ].map(({ label, ...props }) => (
-                <div key={label} style={{ marginBottom: 20 }}>
-                  <div style={{ fontSize: 12, color: C.text, marginBottom: 4 }}>{label}</div>
-                  <Histogram {...props} />
-                </div>
-              ))}
-            </div>
-          )}
-        </Card>
-
         {/* Paramètres */}
         <Card>
           <Eyebrow>Paramètres</Eyebrow>
@@ -1597,7 +1308,53 @@ function SimulatorPage() {
           }}>⟳ Nouvelle seed #{seed + 1}</button>
         </Card>
 
-        <p style={{ color: C.mute, fontSize: 12, lineHeight: 1.7, marginTop: 16 }}>
+        {/* Batch — mode avancé */}
+        <Collapsible title="Distribution sur N simulations — mode avancé">
+          <div style={{ padding: "0 24px" }}>
+            <p style={{ fontSize: 12, color: C.mute, margin: "12px 0 16px", lineHeight: 1.5 }}>
+              Lance N fois la simulation. Les <b style={{ color: C.text }}>pentes de régression</b> sont l'indicateur le plus décisif.
+            </p>
+            <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
+              <button onClick={() => {
+                setBatch(batchSimulate({ engine, games, heroMMR, poolSpread, rigStrength, carryScore, seed }, runs));
+                setBatchEngine(engine);
+              }} style={{
+                padding: "10px 18px", background: color, color: C.ink,
+                border: "none", borderRadius: 7, fontSize: 13, fontWeight: 700, cursor: "pointer",
+              }}>▶ Lancer {runs} simulations</button>
+              <div style={{ flex: 1, minWidth: 160 }}>
+                <input type="range" min={20} max={1000} step={20} value={runs}
+                  onChange={e => setRuns(Number(e.target.value))}
+                  style={{ width: "100%", accentColor: C.target }} />
+                <div style={{ fontSize: 11, color: C.mute, marginTop: 2, fontFamily: MONO }}>
+                  {runs} runs · {(runs * games).toLocaleString()} parties
+                </div>
+              </div>
+            </div>
+            {batch && (
+              <div style={{ marginTop: 18 }}>
+                <div style={{ fontSize: 11, color: C.mute, marginBottom: 12, fontFamily: MONO }}>
+                  {runs} runs ·{" "}
+                  <span style={{ color: batchEngine === "rig" ? C.rig : C.fair }}>
+                    moteur {batchEngine === "rig" ? "truqué" : "honnête"}
+                  </span>{" · ligne pointillée = moyenne"}
+                </div>
+                {[
+                  { label: "Win-rate final", values: batch.winRates, min: 35, max: 65, bins: 24, color: batchEngine === "rig" ? C.rig : C.fair, unit: "%" },
+                  { label: "Pentes de régression — à gauche de 0 = signature loser queue", values: batch.slopes, min: -400, max: 200, bins: 24, color: C.target, unit: "", highlightNeg: true },
+                  { label: "Série de défaites max", values: batch.maxLosses, min: 0, max: 20, bins: 20, color: C.rig, unit: "" },
+                ].map(({ label, ...props }) => (
+                  <div key={label} style={{ marginBottom: 20 }}>
+                    <div style={{ fontSize: 12, color: C.text, marginBottom: 4 }}>{label}</div>
+                    <Histogram {...props} />
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </Collapsible>
+
+        <p style={{ color: C.mute, fontSize: 12, lineHeight: 1.7, marginTop: 20 }}>
           Essaie : biais à 0 en mode honnête, MMR à 3000. Tu verras des séries de 7–8 défaites{" "}
           <em>sans aucun biais</em> — juste la variance naturelle d'un pool rare.
           Seule la <span style={{ color: C.text }}>pente de régression</span> distingue les deux hypothèses.
