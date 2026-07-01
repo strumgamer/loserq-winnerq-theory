@@ -1202,14 +1202,15 @@ function TheoriePage() {
             MATCHMAKING · BANC D'ESSAI STATISTIQUE
           </div>
           <h1 style={{ fontSize: 32, fontWeight: 800, margin: "0 0 10px", lineHeight: 1.1, letterSpacing: "-0.5px", fontFamily: SANS }}>
-            La loser queue existe-t-elle ?
+            L'expérience décrite laisse-t-elle une trace détectable dans les données publiques ?
           </h1>
           <p style={{ color: C.mute, fontSize: 14, lineHeight: 1.65, maxWidth: 520, margin: 0 }}>
-            Simule les deux hypothèses, teste ton intuition, puis vois ce que les{" "}
+            Simule les deux moteurs, teste ton intuition, puis vois ce que les{" "}
             <Link to="/resultats" style={{ color: C.text, textDecoration: "underline", textDecorationColor: C.dim }}>
               vraies données
             </Link>{" "}
-            révèlent. Suis les étapes dans l'ordre.
+            disent. Le test ne peut pas prouver que la manipulation n'existe pas — il peut seulement
+            montrer qu'elle ne laisse aucune trace détectable dans les données publiques.
           </p>
         </div>
 
@@ -1222,6 +1223,14 @@ function TheoriePage() {
           <b>Impossible de dire laquelle est truquée</b> — c'est tout le piège.
           Le ressenti ne distingue pas les deux moteurs. Il faut un test différent.
         </Callout>
+        <p style={{ fontSize: 12, color: C.mute, lineHeight: 1.6, marginTop: 8, fontStyle: "italic" }}>
+          Ce que le simulateur montre déjà : les deux moteurs produisent la même expérience vécue.
+          Pourquoi ? Parce que le hasard honnête produit des <em>séries distinctes</em>, pas de
+          l'alternance — des paquets de victoires suivis de défaites. L'intuition inverse (« sans
+          truquage ce serait plus dilué ») est la confusion la plus documentée en théorie des
+          probabilités. Une alternance régulière serait elle-même suspecte. C'est pour ça que le
+          test de symétrie regarde la composition des équipes — pas les résultats.
+        </p>
 
         {/* 02 */}
         <Step n={2} title="Le test décisif"
@@ -1546,10 +1555,17 @@ function ResultatsPage() {
             Un joueur dont le niveau a changé entre ses parties et aujourd'hui introduit un biais dans l'écart d'équipe calculé.
             L'effet peut être sous-estimé ou sur-estimé selon le sens du drift.
           </div>
-          <div>
+          <div style={{ marginBottom: 4 }}>
             <b style={{ color: C.text }}>Biais de sélection</b> — le recrutement attire préférentiellement des joueurs qui croient à la loser queue.
             Le test de symétrie mesure la composition des équipes (pas la performance individuelle), ce qui le rend partiellement immunisé —
             mais une sur-représentation de joueurs en tilt reste possible.
+          </div>
+          <div>
+            <b style={{ color: C.text }}>Frontière de détectabilité</b> — en dessous de 26,3 points de rang par unité de win-rate
+            (noise_ratio = 0,50, N = 3 000), le test actuel ne peut pas conclure. Si la manipulation déclenchait
+            sur le MMR interne plutôt que sur le win-rate observable, l'effet serait atténué d'un facteur λ = 0,800
+            dans les données — une réduction irréductible. Détecter cet effet nécessiterait environ 1,6× plus de données ;
+            dans la limite orthogonale (λ→0), une infinité — aucune étude externe ne pourrait conclure.
           </div>
         </div>
 

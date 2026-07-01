@@ -1,6 +1,6 @@
 # loserq_winnerq_theory
 
-**Statut** : ✓ H0 conservée — phase pilote (10 joueurs, 924 obs within-player)
+**Statut** : ✓ H0 conservée — phase confirmatoire intermédiaire (27 joueurs, 2 561 obs within-player)
 
 Test statistique empirique de la théorie "loser/winner queue" dans League of Legends via la Riot API publique.
 
@@ -8,11 +8,15 @@ Test statistique empirique de la théorie "loser/winner queue" dans League of Le
 
 ## Résumé
 
-On teste si le matchmaking de Riot assigne des alliés systématiquement plus faibles quand un joueur est en forme (win-streak). Le test décisif est une régression `team_diff ~ recent_wr_10` avec fixed-effects intra-joueur et correction Newey-West HAC. La difficulté centrale est que l'API ne donne pas le MMR interne : `team_diff` est construit sur le rang public (proxy imparfait), ce qui atténue l'effet vers zéro même s'il existait. Sur les données pilotes (10 joueurs, 924 observations within-player), la pente est positive et non significative (slope=+30.5, p=0.76) : H0 conservée, mais la puissance actuelle (~55 %) est insuffisante pour conclure à l'absence d'effet.
+On teste si **l'expérience que les joueurs décrivent comme "loser queue" laisse une trace détectable** dans les données publiques Riot. Le test décisif est une régression `team_diff ~ recent_wr_10` avec fixed-effects intra-joueur et correction Newey-West HAC. La difficulté centrale est que l'API ne donne pas le MMR interne : `team_diff` est construit sur le rang public (proxy imparfait), ce qui atténue l'effet vers zéro même s'il existait. Sur les données confirmatoires intermédiaires (27 joueurs, 2 561 observations within-player), la pente est négative et non significative (slope=−20.2, SE=21.5, p=0.17) : H0 conservée. La puissance actuelle est ~100 % pour r=0.10 — le résultat est informatif. Les estimateurs secondaires (FE p=0.070, RE p=0.075) s'approchent du seuil dans la direction H1 sans l'atteindre.
+
+**Espace des hypothèses** : trois mondes sont compatibles avec les données disponibles. (1) Matchmaking honnête : β ≈ 0, aucune signature détectable. (2) Manipulation grossière : β < 0 significatif sur le proxy rang — détectable par ce test. (3) Manipulation fine : opère via MMR interne et données privées Riot, structurellement indétectable depuis l'extérieur — aucune donnée publique ne peut ni la prouver ni la réfuter. Ce projet peut écarter ou confirmer le monde 2. Il ne peut pas trancher sur le monde 3.
 
 ---
 
 ## Hypothèses
+
+**Question** : l'expérience vécue par les joueurs laisse-t-elle une trace détectable dans les données publiques ?
 
 **H0** : β = 0 dans `team_diff ~ recent_wr_10` — matchmaking indépendant de la forme récente.
 
@@ -26,15 +30,23 @@ On teste si le matchmaking de Riot assigne des alliés systématiquement plus fa
 
 **Note proxy** : rang public ≠ MMR interne Riot. Toute conclusion porte sur ce proxy. Une atténuation vers 0 est attendue même sous H1 (measurement error in Y).
 
+**Pré-spécification des deux issues** :
+
+- Si H0 rejetée (β < 0, p < 0.05) : données compatibles avec le monde 2 sur le proxy rang. La vraie amplitude peut être plus grande (atténuation par le bruit du proxy).
+- Si H0 conservée (N ≥ 3 000, puissance > 80 %) : monde 2 absent des données publiques. Le monde 3 reste non testable — ce n'est pas un échec, c'est la conclusion.
+
 ---
 
-## Résultats actuels (phase pilote)
+## Résultats actuels (phase confirmatoire — intermédiaire)
 
 ### FE OLS poolé within-player (estimateur pré-enregistré)
 
-| Estimateur | n_obs | slope | p (unilatéral) | Verdict |
-|---|---|---|---|---|
-| FE OLS NW-HAC | 924 | +30.5 | 0.76 | ✓ H0 conservée |
+| Estimateur | n_obs | n_joueurs | slope | SE_NW | p (unilatéral) | Verdict |
+|---|---|---|---|---|---|---|
+| FE OLS NW-HAC | 2 561 | 27 | −20.2 | 21.5 | 0.17 | ✓ H0 conservée |
+
+Puissance actuelle (r=0.10, N=2561) ≈ 100 % — le résultat est informatif.
+Secondaires non-décisionnels : FE β=−28.8 p=0.070 ; RE β=−34.4 p=0.075 (BH-correction à appliquer).
 
 ### Résultats individuels (export anonymisé — `src/results/data.json`)
 

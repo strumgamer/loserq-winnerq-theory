@@ -14,6 +14,10 @@ Note sur le nw_factor empirique (calibré sur 7 joueurs pilotes EUW, Juin 2026) 
 
 import math
 
+_SIGMA_X = 0.289        # std(recent_wr_10) théorique ; vérifier empiriquement
+_SIGMA_Y_PROXY = 150.0  # std(team_diff_rank) proxy ; vérifier empiriquement
+
+
 def norm_ppf(p):
     if p < 0.5:
         return -norm_ppf(1 - p)
@@ -106,17 +110,11 @@ def attenuation_bounds(
     print(f"Inflation SE = ×{noise_inflation:.3f}  (réduction puissance équivalente)")
     print("=" * 65)
 
-    # Hypothèses : X ~ Uniform(0,1), sigma_X ≈ 0.289 (winrate 0-1)
-    # sigma_Y_proxy estimé depuis les données : ~150 rank points
-    sigma_x = 0.289
-    sigma_y_proxy = 150.0  # écart-type typique de team_diff en rank points
-
     print(f"\n{'Pente vraie':>12} | {'N':>6} | {'r_effectif':>10} | {'Puissance':>10} | {'Interprétation'}")
     print("-" * 65)
 
     for slope in true_slopes:
-        # Corrélation théorique dans les données propres
-        r_clean = slope * sigma_x / sigma_y_proxy
+        r_clean = slope * _SIGMA_X / _SIGMA_Y_PROXY
         # Corrélation effective avec proxy bruité (atténuée par inflation SE)
         r_eff = r_clean / noise_inflation
 
@@ -150,8 +148,6 @@ def sensitivity_table(noise_ratios=(0.20, 0.30, 0.50, 0.70)):
     Table de sensibilité : comment les bornes d'atténuation varient selon noise_ratio.
     Montre que les conclusions sont robustes (ou non) à l'hypothèse sur le bruit du proxy.
     """
-    import math
-
     print("\n" + "=" * 70)
     print("SENSIBILITÉ AU BRUIT DU PROXY (noise_ratio)")
     print("=" * 70)
@@ -159,14 +155,11 @@ def sensitivity_table(noise_ratios=(0.20, 0.30, 0.50, 0.70)):
     print(f"{'':>12} | {'':>12} | {'pente=-60':>16} | {'pente=-30':>16} |")
     print("-" * 70)
 
-    sigma_x = 0.289
-    sigma_y_proxy = 150.0
-
     for nr in noise_ratios:
         inflation = math.sqrt(1 + nr ** 2)
 
         def power_at(slope, n):
-            r_clean = slope * sigma_x / sigma_y_proxy
+            r_clean = slope * _SIGMA_X / _SIGMA_Y_PROXY
             r_eff = r_clean / inflation
             r2 = r_eff ** 2
             if r2 >= 1.0:
@@ -194,6 +187,60 @@ def sensitivity_table(noise_ratios=(0.20, 0.30, 0.50, 0.70)):
     print("Note : table subordonnée à l'estimation empirique du bruit.")
     print("       Recommandé : corréler rang public × winrate intra-game sur sous-échantillon.")
     print("       noise_ratio=0.70 → effet indétectable à tout N réaliste (inflation ×1.22).")
+
+
+def detectability_frontier(
+    noise_ratios=(0.20, 0.30, 0.50, 0.70),
+    n=3000, alpha=0.05, power_target=0.80,
+):
+    """
+    THREE DISTINCT QUANTITIES:
+
+    1. MDE (power, N-dependent) — noise on Y.
+       team_diff_rank = team_diff_true + ε_Y.
+       Inflates SE, does not bias slope. Recoverable with more N.
+
+    2. λ (measurement, N-INDEPENDENT) — noise on X.
+       recent_wr_10 = noisy proxy of true internal form signal.
+       β_obs = λ × β_true, λ = 1/(1+nr²). No N corrects this.
+
+    3. data_cost = 1/λ² (N-INDEPENDENT).
+       Factor by which N must increase to detect same β_true through attenuation.
+       λ→0 (orthogonal): data_cost→∞ — impossible at any N.
+
+    NOTE: No N-independent floor in β_true for partial correlation (λ > 0).
+    The structural argument is DATA COST diverging, not an effect floor.
+    Only λ = 0 (fully orthogonal) makes detection impossible at any N.
+    """
+    z_a, z_p = 1.6449, 0.8416
+
+    print("\n" + "=" * 76)
+    print("FRONTIÈRE DE DÉTECTABILITÉ — trois quantités distinctes")
+    print(f"  N={n}  α={alpha} one-tailed  puissance={power_target:.0%}")
+    print("=" * 76)
+    print(f"{'nr':>5} | {'MDE proxy':>10} | {'λ [N-indép]':>12} | {'data_cost [N-indép]':>20}")
+    print("-" * 60)
+
+    results = {}
+    for nr in noise_ratios:
+        ni = (1 + nr**2)**0.5
+        cs = (z_a + z_p) * ni
+        r_mde = cs / ((n - 2 + cs**2)**0.5)
+        mde = r_mde * _SIGMA_Y_PROXY / _SIGMA_X
+
+        lam = 1.0 / (1.0 + nr**2)
+        data_cost = 1.0 / (lam ** 2)
+
+        print(f"{nr:>5.2f} | {mde:>10.1f} | {lam:>12.3f} | {data_cost:>20.1f}×")
+        results[nr] = {"mde": round(mde, 1), "lam": round(lam, 3), "data_cost": round(data_cost, 1)}
+
+    print()
+    print("MDE proxy    : limite de cette étude (N=3000).")
+    print("λ [N-indép.] : fraction de β_true capturée dans le proxy.")
+    print("data_cost    : facteur ×N pour même puissance via proxy.")
+    print("               λ→0 : data_cost→∞ — impossible à tout N.")
+    print(f"Note : _SIGMA_X={_SIGMA_X} théorique. Vérifier empiriquement depuis CSV.")
+    return results
 
 
 if __name__ == "__main__":
@@ -294,3 +341,4 @@ if __name__ == "__main__":
 
     attenuation_bounds()
     sensitivity_table()
+    detectability_frontier()

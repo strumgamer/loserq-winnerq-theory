@@ -23,6 +23,7 @@ Secondary analyses are exploratory and subject to Benjamini-Hochberg correction 
 | Queue timing | Longer queue time when in form | `queue_time ~ recent_wr_10`, slope > 0 |
 | Ladder comparison | Confirmatoire slopes < random sample | Mann-Whitney U, one-tailed |
 | Champion pool | More off-pool allies when target is in form | `off_pool_rate ~ recent_wr_10`, slope > 0 |
+| Internal dispersion | Higher ally rank spread when in form (joueur pivot) | `std(ally_rank) ~ recent_wr_10`, slope > 0 |
 
 Correction: BH applied to the three secondary p-values. Primary (symmetry) is not penalized.
 
@@ -92,3 +93,42 @@ stopping_date = 2026-12-31
 ```
 
 These values must not be changed after data collection begins. Any deviation must be logged as a sensitivity analysis, not substituted for the primary result.
+
+---
+
+## 8. Hypothesis Space — Three Worlds
+
+**World 1 — Honest matchmaking**: β ≈ 0. Honest random matchmaking produces clustered streaks (runs), not alternation — this is a mathematical property of random sequences. The intuition that "honest matching would produce diluted, interleaved results" is statistically incorrect. Runs of wins and losses are expected; smooth alternation would itself be suspicious.
+
+**World 2 — Coarse manipulation (primary test target)**: β < 0, statistically significant on the rank proxy. Detectable at r ≥ 0.10, N = 3 000.
+
+**World 2b — Engagement manipulation (EOMM)**: Deferred. Testable via a session-proxy reconstructed from game timestamps (inter-game gap, position-in-session), but the proxy is too noisy to be a priority in this phase. Not "out of reach" — explicitly deferred.
+
+**World 3 — Fine manipulation**: The observed slope is attenuated: β_obs = λ × β_true, λ = 1/(1+noise_ratio²), N-independent. The cost to detect World 3 effects grows as 1/λ²; in the fully orthogonal limit (λ→0), data_cost→∞ — no finite N suffices. There is NO N-independent floor in β_true for partial correlation (λ > 0); the structural argument is about data cost diverging, not a floor.
+
+Assumption: World 3 acts on the component of MMR orthogonal to public rank (worst case). With Corr(rank, MMR) = r, λ_eff = λ × r². This is an assumption, not a fact.
+
+**Scope of this study**: Rules World 2 in or out. Cannot address World 3. A null result means World 2 is absent from the public data; World 3 remains outside the reach of any external investigation. This is the conclusion, not a failure.
+
+**Detectability** (see `power_analysis.py::detectability_frontier`, nr=0.50, N=3 000):
+
+- MDE proxy: 26.3 rank pts/unit win-rate (study limit, N-dependent).
+- λ = 0.800 (N-independent): attenuation factor on β_true.
+- data_cost = 1.6× (N-independent): factor by which N must increase to detect the same β_true through the proxy. When λ→0: data_cost→∞.
+
+---
+
+## 9. Pre-specification of Both Outcomes
+
+**If H0 is rejected** (β < 0, p < 0.05, FE OLS NW-HAC, N ≥ 3 000):
+
+- Data are compatible with World 2 on the rank proxy.
+- Caveat: true effect may be larger due to measurement error on Y (rank ≠ MMR).
+- Caveat: β < 0 does not constitute proof of intentional manipulation.
+
+**If H0 is retained** (β ≈ 0, p > 0.05, N ≥ 3 000, power ≥ 80 % for r = 0.10):
+
+- World 2 is absent from the public data at the detectable effect size.
+- The subjective experience of losing streaks is indistinguishable from honest matchmaking on these data. This is an informative result, not an absence of result.
+- World 3 remains a non-disprovable hypothesis. Explicit statement required: "We cannot exclude that Riot uses internal signals invisible to the public API."
+- Do not state that matchmaking is honest. State: "No detectable signature of coarse manipulation was found."
