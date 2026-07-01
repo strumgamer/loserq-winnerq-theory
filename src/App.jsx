@@ -924,7 +924,7 @@ function ParadoxSection({ seed, heroMMR, poolSpread, rigStrength, carryScore, ga
       <Divider margin="16px 0 12px" />
       <div style={{ fontSize: 13, color: C.mute, textAlign: "center" }}>
         Même seed · même MMR ·{" "}
-        <span style={{ color: C.text, fontWeight: 600 }}>Laquelle est la loser queue ?</span>
+        <span style={{ color: C.text, fontWeight: 600 }}>Laquelle est truquée ?</span>
       </div>
     </Card>
   );
@@ -1238,7 +1238,7 @@ function TheoriePage() {
 
         {/* 01 */}
         <Step n={1} title="Le paradoxe"
-          sub="Un matchmaking honnête et une loser queue produisent des courbes de WR identiques à l'œil" />
+          sub="Un matchmaking honnête et un matchmaking truqué produisent des courbes de WR identiques à l'œil" />
         <ParadoxSection seed={seed} {...BASE} />
         <Callout color={C.fair}>
           Les deux win-rates convergent vers 50%, les séries de défaites ont la même longueur.{" "}
@@ -1281,21 +1281,12 @@ function TheoriePage() {
           <Link to="/resultats" style={{ color: C.target }}>vraies données →</Link>
         </Callout>
 
-        <div style={{ marginTop: 24, display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+        <div style={{ marginTop: 24 }}>
           <button onClick={() => setSeed(s => s + 1)} style={{
             padding: "8px 16px", background: "transparent", color: C.mute,
             border: `1px solid ${C.dim}`, borderRadius: 7, fontSize: 12,
             cursor: "pointer", fontFamily: MONO,
           }}>⟳ Nouvelle seed #{seed + 1}</button>
-          <Link to="/resultats" style={{
-            padding: "10px 22px", background: C.target, color: C.ink,
-            borderRadius: 7, fontSize: 13, fontWeight: 700, textDecoration: "none",
-          }}>Tester mon compte →</Link>
-          <Link to="/simulateur" style={{
-            padding: "10px 18px", background: "transparent", color: C.mute,
-            borderRadius: 7, fontSize: 13, fontWeight: 500, textDecoration: "none",
-            border: `1px solid ${C.dim}`,
-          }}>Explorer le simulateur</Link>
         </div>
 
       </div>
