@@ -1196,6 +1196,171 @@ function NavBar() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// MATCHMAKING SCENE — standalone (TheoriePage step 3)
+// ─────────────────────────────────────────────────────────────────────────────
+
+function usePrefersReducedMotion() {
+  const [reduced, setReduced] = React.useState(
+    () => typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches
+  );
+  React.useEffect(() => {
+    const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const handler = e => setReduced(e.matches);
+    mq.addEventListener("change", handler);
+    return () => mq.removeEventListener("change", handler);
+  }, []);
+  return reduced;
+}
+
+function mmRng(seed) {
+  let s = (seed >>> 0) || 1;
+  return () => { s = (Math.imul(1664525, s) + 1013904223) >>> 0; return s / 4294967296; };
+}
+
+function mmBuildState(engine, form, seed) {
+  const rng = mmRng(seed);
+  const base = 72;
+  const noise = () => Math.round((rng() - 0.5) * 44);
+  const players = [];
+  for (let i = 0; i < 5; i++) {
+    let lp = base + noise();
+    if (engine === "rig" && form === "hot" && i > 0) lp -= 20;
+    players.push({ lp: Math.max(15, Math.min(100, lp)), team: "blue", isYou: i === 0 });
+  }
+  for (let i = 0; i < 5; i++) {
+    let lp = base + noise();
+    if (engine === "rig" && form === "hot") lp += 20;
+    players.push({ lp: Math.max(15, Math.min(100, lp)), team: "red", isYou: false });
+  }
+  const blue = players.filter(p => p.team === "blue");
+  const red  = players.filter(p => p.team === "red");
+  const gap  = Math.round(
+    blue.reduce((s, p) => s + p.lp, 0) / blue.length -
+    red.reduce((s, p) => s + p.lp, 0) / red.length
+  );
+  return { players, gap };
+}
+
+function PlayerDotMM({ lp, team, isYou, noMotion }) {
+  const color = team === "blue" ? C.fair : C.rig;
+  return (
+    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 3 }}>
+      <div style={{
+        width: isYou ? 30 : 24, height: isYou ? 30 : 24,
+        borderRadius: "50%", background: color,
+        opacity: isYou ? 1 : 0.6,
+        border: isYou ? `2px solid ${C.target}` : "none",
+        boxShadow: isYou ? `0 0 0 3px ${C.target}33` : "none",
+        transition: noMotion ? "none" : "all .4s cubic-bezier(.4,0,.2,1)",
+      }} />
+      <span style={{ fontSize: 9, fontFamily: MONO, color: isYou ? C.text : C.mute, fontWeight: isYou ? 700 : 400 }}>
+        {lp}
+      </span>
+    </div>
+  );
+}
+
+function GapBarMM({ gapLP, noMotion }) {
+  const maxLP = 100;
+  const clamped = Math.max(-maxLP, Math.min(maxLP, gapLP));
+  const pct = (Math.abs(clamped) / maxLP) * 50;
+  const toRight = clamped < 0;
+  const color = toRight ? C.rig : C.fair;
+  return (
+    <div style={{ marginTop: 16 }}>
+      <div style={{ position: "relative", height: 8, borderRadius: 4, background: C.dim, overflow: "hidden" }}>
+        <div style={{ position: "absolute", left: "50%", top: 0, bottom: 0, width: 2, background: C.mute, opacity: .4, transform: "translateX(-50%)" }} />
+        <div style={{
+          position: "absolute", top: 0, bottom: 0,
+          [toRight ? "left" : "right"]: "50%",
+          width: `${pct}%`, background: color, borderRadius: 4,
+          transition: noMotion ? "none" : "all .5s cubic-bezier(.4,0,.2,1)",
+        }} />
+      </div>
+      <div style={{ display: "flex", justifyContent: "space-between", marginTop: 5, fontSize: 10, fontFamily: MONO, color: C.mute }}>
+        <span style={{ color: C.fair }}>bleue</span>
+        <span style={{ color: Math.abs(gapLP) > 4 ? color : C.mute, fontWeight: 600 }}>
+          {Math.abs(gapLP) < 3 ? "équilibré" : `${Math.abs(gapLP)} LP`}
+        </span>
+        <span style={{ color: C.rig }}>rouge</span>
+      </div>
+    </div>
+  );
+}
+
+function MatchmakingScene({ seed }) {
+  const mobile    = useIsMobile();
+  const noMotion  = usePrefersReducedMotion();
+  const [engine, setEngine] = useState("fair");
+  const [form,   setForm]   = useState("hot");
+
+  const { players, gap } = useMemo(
+    () => mmBuildState(engine, form, seed * 997 + 13),
+    [engine, form, seed]
+  );
+  const blue = players.filter(p => p.team === "blue");
+  const red  = players.filter(p => p.team === "red");
+
+  return (
+    <div style={{ background: C.paper, border: `1px solid ${C.dim}`, borderRadius: 12, padding: "22px 20px 18px", marginBottom: 8 }}>
+      <div style={{ textAlign: "center", marginBottom: 16, fontSize: 10, letterSpacing: "0.1em",
+        fontFamily: MONO, color: engine === "rig" ? C.rig : C.fair, textTransform: "uppercase" }}>
+        Hypothèse · matchmaking {engine === "rig" ? "truqué" : "honnête"}
+      </div>
+
+      <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: mobile ? 10 : 20, flexWrap: "nowrap" }}>
+        <div style={{ display: "flex", gap: mobile ? 6 : 8, flexWrap: "wrap", justifyContent: "center", width: mobile ? 130 : 155 }}>
+          {blue.map((p, i) => <PlayerDotMM key={i} {...p} noMotion={noMotion} />)}
+        </div>
+        <span style={{ fontSize: 10, fontFamily: MONO, color: C.mute, flexShrink: 0 }}>vs</span>
+        <div style={{ display: "flex", gap: mobile ? 6 : 8, flexWrap: "wrap", justifyContent: "center", width: mobile ? 130 : 155 }}>
+          {red.map((p, i) => <PlayerDotMM key={i} {...p} noMotion={noMotion} />)}
+        </div>
+      </div>
+
+      <GapBarMM gapLP={gap} noMotion={noMotion} />
+
+      <div style={{ display: "flex", gap: 6, marginTop: 18, flexWrap: "wrap" }}>
+        {[["fair", "Honnête", C.fair], ["rig", "Truqué", C.rig]].map(([k, l, c]) => (
+          <button key={k} onClick={() => setEngine(k)} style={{
+            flex: 1, padding: "7px 10px", borderRadius: 7, fontSize: 12, fontWeight: 600,
+            cursor: "pointer",
+            background: engine === k ? c + "18" : "transparent",
+            color: engine === k ? c : C.mute,
+            border: `1px solid ${engine === k ? c + "55" : C.dim}`,
+            transition: "all .12s",
+          }}>{l}</button>
+        ))}
+      </div>
+
+      {engine === "rig" && (
+        <div style={{ display: "flex", gap: 6, marginTop: 6 }}>
+          {[["hot", "En forme 🔥"], ["cold", "En défaite"]].map(([k, l]) => (
+            <button key={k} onClick={() => setForm(k)} style={{
+              flex: 1, padding: "5px 10px", borderRadius: 20, fontSize: 11,
+              cursor: "pointer",
+              background: form === k ? C.target + "18" : "transparent",
+              color: form === k ? C.target : C.mute,
+              border: `1px solid ${form === k ? C.target + "55" : C.dim}`,
+              transition: "all .12s",
+            }}>{l}</button>
+          ))}
+        </div>
+      )}
+
+      <p style={{ fontSize: 11, color: C.mute, margin: "12px 0 0", lineHeight: 1.6 }}>
+        {engine === "fair"
+          ? <>En matchmaking <b style={{ color: C.fair }}>honnête</b>, la barre oscille sans direction — la forme du joueur n'influence pas la composition des équipes.</>
+          : form === "hot"
+          ? <>En matchmaking <b style={{ color: C.rig }}>truqué</b> et joueur en forme, l'équipe bleue est désavantagée. C'est la signature que <code style={{ fontFamily: MONO, color: C.target }}>team_diff~recent_wr</code> détecte.</>
+          : <>En matchmaking <b style={{ color: C.rig }}>truqué</b> et joueur en défaite, l'effet s'inverse — le biais est corrélé à la forme, pas au hasard.</>
+        }
+      </p>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // PAGE — THÉORIE (/)
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -1280,6 +1445,11 @@ function TheoriePage() {
           {" "}— appliqué sur les{" "}
           <Link to="/resultats" style={{ color: C.target }}>vraies données →</Link>
         </Callout>
+
+        {/* 03 */}
+        <Step n={3} title="La composition des équipes"
+          sub="Hypothèses — voici à quoi ressemblerait la répartition selon chaque modèle" />
+        <MatchmakingScene seed={seed} />
 
         <div style={{ marginTop: 24 }}>
           <button onClick={() => setSeed(s => s + 1)} style={{

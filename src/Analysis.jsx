@@ -358,6 +358,205 @@ function CarrySection({ slope_1v9, slope_teamdep, n_1v9, n_teamdep }) {
   );
 }
 
+// ─── Matchmaking animation — loading screen ──────────────────────────────────
+
+function usePrefersReducedMotion() {
+  const [reduced, setReduced] = React.useState(
+    () => typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches
+  );
+  React.useEffect(() => {
+    const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const handler = e => setReduced(e.matches);
+    mq.addEventListener("change", handler);
+    return () => mq.removeEventListener("change", handler);
+  }, []);
+  return reduced;
+}
+
+function mmRng(seed) {
+  let s = (seed >>> 0) || 1;
+  return () => { s = (Math.imul(1664525, s) + 1013904223) >>> 0; return s / 4294967296; };
+}
+
+function mmBuildState(hypothesis, inForm, rng) {
+  const base = 72;
+  const noise = () => Math.round((rng() - 0.5) * 44);
+  const players = [];
+  for (let i = 0; i < 5; i++) {
+    let lp = base + noise();
+    if (hypothesis === "rig" && inForm && i > 0) lp -= 20;
+    players.push({ lp: Math.max(15, Math.min(100, lp)), team: "blue", isYou: i === 0 });
+  }
+  for (let i = 0; i < 5; i++) {
+    let lp = base + noise();
+    if (hypothesis === "rig" && inForm) lp += 20;
+    players.push({ lp: Math.max(15, Math.min(100, lp)), team: "red", isYou: false });
+  }
+  return { players, hypothesis, inForm };
+}
+
+function PlayerDotMM({ lp, team, isYou, noMotion }) {
+  const color = team === "blue" ? C.fair : C.rig;
+  return (
+    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 3 }}>
+      <div style={{
+        width: isYou ? 30 : 24, height: isYou ? 30 : 24,
+        borderRadius: "50%", background: color,
+        opacity: isYou ? 1 : 0.6,
+        border: isYou ? `2px solid ${C.target}` : "none",
+        boxShadow: isYou ? `0 0 0 3px ${C.target}33` : "none",
+        transition: noMotion ? "none" : "all .35s cubic-bezier(.4,0,.2,1)",
+      }} />
+      <span style={{ fontSize: 9, fontFamily: MONO, color: isYou ? C.text : C.mute, fontWeight: isYou ? 700 : 400 }}>
+        {lp}
+      </span>
+    </div>
+  );
+}
+
+function GapBarMM({ gapLP, noMotion }) {
+  const maxLP = 100;
+  const clamped = Math.max(-maxLP, Math.min(maxLP, gapLP));
+  const pct = (Math.abs(clamped) / maxLP) * 50;
+  const toRight = clamped < 0;
+  const color = toRight ? C.rig : C.fair;
+  return (
+    <div style={{ marginTop: 14 }}>
+      <div style={{ position: "relative", height: 7, borderRadius: 4, background: C.dim, overflow: "hidden" }}>
+        <div style={{ position: "absolute", left: "50%", top: 0, bottom: 0, width: 2, background: C.mute, opacity: .4, transform: "translateX(-50%)" }} />
+        <div style={{
+          position: "absolute", top: 0, bottom: 0,
+          [toRight ? "left" : "right"]: "50%",
+          width: `${pct}%`, background: color, borderRadius: 4,
+          transition: noMotion ? "none" : "all .5s cubic-bezier(.4,0,.2,1)",
+        }} />
+      </div>
+      <div style={{ display: "flex", justifyContent: "space-between", marginTop: 4, fontSize: 10, fontFamily: MONO, color: C.mute }}>
+        <span style={{ color: C.fair }}>bleue</span>
+        <span style={{ color: Math.abs(gapLP) > 4 ? color : C.mute, fontWeight: 600 }}>
+          {Math.abs(gapLP) < 3 ? "équilibré" : `${Math.abs(gapLP)} LP`}
+        </span>
+        <span style={{ color: C.rig }}>rouge</span>
+      </div>
+    </div>
+  );
+}
+
+function MatchmakingEngineMM({ state, mobile, noMotion }) {
+  const { players, hypothesis } = state;
+  const blue = players.filter(p => p.team === "blue");
+  const red  = players.filter(p => p.team === "red");
+  const gapLP = Math.round(
+    blue.reduce((s, p) => s + p.lp, 0) / blue.length -
+    red.reduce((s, p) => s + p.lp, 0) / red.length
+  );
+  const dotGap   = mobile ? 6 : 8;
+  const outerGap = mobile ? 10 : 16;
+  const teamMax  = mobile ? 130 : 155;
+  return (
+    <div>
+      <div style={{ textAlign: "center", marginBottom: 14, fontSize: 10, letterSpacing: "0.1em",
+        fontFamily: MONO, color: hypothesis === "rig" ? C.rig : C.fair, textTransform: "uppercase" }}>
+        Hypothèse · matchmaking {hypothesis === "rig" ? "truqué" : "honnête"}
+      </div>
+      <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: outerGap, flexWrap: "nowrap" }}>
+        <div style={{ display: "flex", gap: dotGap, flexWrap: "wrap", justifyContent: "center", width: teamMax }}>
+          {blue.map((p, i) => <PlayerDotMM key={i} {...p} noMotion={noMotion} />)}
+        </div>
+        <div style={{ fontSize: 10, fontFamily: MONO, color: C.mute, flexShrink: 0 }}>vs</div>
+        <div style={{ display: "flex", gap: dotGap, flexWrap: "wrap", justifyContent: "center", width: teamMax }}>
+          {red.map((p, i) => <PlayerDotMM key={i} {...p} noMotion={noMotion} />)}
+        </div>
+      </div>
+      <GapBarMM gapLP={gapLP} noMotion={noMotion} />
+    </div>
+  );
+}
+
+// Cycle : 3 états honnêtes (bruit pur) → 2 truqués+forme → 1 truqué+défaite
+// Les 3 états honnêtes consomment 30 nombres aléatoires distincts → gaps différents,
+// certains en faveur du bleu, d'autres du rouge — le visiteur voit l'oscillation sans biais.
+const MM_CYCLE = [
+  ["fair", false],
+  ["fair", false],
+  ["fair", false],
+  ["rig",  true],
+  ["rig",  true],
+  ["rig",  false],
+];
+
+function MatchmakingLoop({ loadingStep, count }) {
+  const mobile     = useIsMobile();
+  const noMotion   = usePrefersReducedMotion();
+  const [simState, setSimState] = React.useState(null);
+  const cycleRef = React.useRef(0);
+  const rngRef   = React.useRef(null);
+
+  React.useEffect(() => {
+    rngRef.current = mmRng((Date.now() & 0xFFFF) || 1);
+    cycleRef.current = 0;
+    const [h, f] = MM_CYCLE[0];
+    setSimState(mmBuildState(h, f, rngRef.current));
+
+    if (noMotion) return; // version statique pour prefers-reduced-motion
+
+    const id = setInterval(() => {
+      cycleRef.current = (cycleRef.current + 1) % MM_CYCLE.length;
+      const [hyp, form] = MM_CYCLE[cycleRef.current];
+      setSimState(mmBuildState(hyp, form, rngRef.current));
+    }, 3600);
+    return () => clearInterval(id);
+  }, [noMotion]);
+
+  if (!simState) return null;
+
+  return (
+    <div style={{ marginTop: 24, padding: "20px 20px 16px", background: C.paper, border: `1px solid ${C.dim}`, borderRadius: 12 }}>
+      <MatchmakingEngineMM state={simState} mobile={mobile} noMotion={noMotion} />
+      <div style={{ marginTop: 20, borderTop: `1px solid ${C.dim}`, paddingTop: 14 }}>
+        {[
+          { label: "Résolution du compte Riot…",  detail: "Vérification du Riot ID" },
+          { label: "Récupération des parties…",    detail: `Téléchargement jusqu'à ${count} games` },
+          { label: "Calcul des statistiques…",     detail: "Régression + test unilatéral" },
+        ].map((s, i) => {
+          const done   = i < loadingStep;
+          const active = i === loadingStep;
+          return (
+            <div key={i} style={{
+              display: "flex", alignItems: "center", gap: 12, padding: "7px 0",
+              opacity: done ? 0.45 : active ? 1 : 0.3,
+              borderBottom: i < 2 ? `1px solid ${C.dim}` : "none",
+            }}>
+              <div style={{
+                width: 18, height: 18, borderRadius: "50%", flexShrink: 0,
+                display: "flex", alignItems: "center", justifyContent: "center",
+                background: done ? C.fair + "22" : active ? C.target + "22" : C.dim + "44",
+                border: `1.5px solid ${done ? C.fair : active ? C.target : C.dim}`,
+              }}>
+                {done
+                  ? <span style={{ fontSize: 10, color: C.fair, fontWeight: 700 }}>✓</span>
+                  : active
+                  ? <span style={{ width: 7, height: 7, borderRadius: "50%", background: C.target, display: "block", animation: "spin 1s linear infinite" }} />
+                  : <span style={{ fontSize: 9, color: C.mute }}>{i + 1}</span>
+                }
+              </div>
+              <div>
+                <div style={{ fontSize: 12, fontWeight: active ? 600 : 400, color: active ? C.text : C.mute }}>{s.label}</div>
+                {active && <div style={{ fontSize: 10, color: C.mute, marginTop: 1, fontFamily: MONO }}>{s.detail}</div>}
+              </div>
+            </div>
+          );
+        })}
+        <div style={{ marginTop: 10, fontSize: 10, color: C.mute, fontFamily: MONO }}>
+          ⏱ 2–5 min selon le cache Riot · Ne pas fermer la page
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 const SERVER_MAP = {
   "euw1": { region: "europe",   platform: "euw1", label: "EUW — Europe Ouest" },
   "eun1": { region: "europe",   platform: "eun1", label: "EUNE — Europe Nord-Est" },
@@ -476,7 +675,7 @@ export default function Analysis() {
         la régression <code style={{ color: C.target, fontFamily: MONO }}>team_diff ~ recent_wr</code>.
       </p>
 
-      <form onSubmit={handleSubmit} style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "flex-end", flexDirection: isMobile ? "column" : "row" }}>
+      <form onSubmit={handleSubmit} style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: isMobile ? "stretch" : "flex-end", flexDirection: isMobile ? "column" : "row" }}>
         <div style={{ flex: "2 1 200px" }}>
           <label style={{ fontSize: 11, color: C.mute, display: "block", marginBottom: 5 }}>
             Riot ID (ex : Pseudo#EUW)
@@ -507,12 +706,14 @@ export default function Analysis() {
           </div>
         </div>
 
-        <div>
+        <div style={{ width: isMobile ? "100%" : undefined }}>
           <label style={{ display: "block", fontSize: 11, color: C.mute, marginBottom: 4 }}>Serveur</label>
           <select value={server} onChange={e => setServer(e.target.value)} style={{
             padding: "8px 10px", borderRadius: 8, border: `1px solid ${C.dim}`,
             fontSize: 13, background: C.card, color: C.text, cursor: "pointer",
+            width: isMobile ? "100%" : undefined,
             minHeight: isMobile ? 40 : undefined,
+            boxSizing: "border-box",
           }}>
             {Object.entries(SERVER_MAP).map(([key, { label }]) => (
               <option key={key} value={key}>{label}</option>
@@ -520,7 +721,7 @@ export default function Analysis() {
           </select>
         </div>
 
-        <div style={{ flex: "0 1 90px" }}>
+        <div style={{ flex: isMobile ? "1 1 auto" : "0 1 90px" }}>
           <label style={{ fontSize: 11, color: C.mute, display: "block", marginBottom: 5 }}>
             Nombre de games
           </label>
@@ -558,7 +759,8 @@ export default function Analysis() {
             fontWeight: 700,
             cursor: loading ? "not-allowed" : "pointer",
             transition: "background .12s",
-            alignSelf: "flex-end",
+            alignSelf: isMobile ? "auto" : "flex-end",
+            width: isMobile ? "100%" : undefined,
             whiteSpace: "nowrap",
           }}
         >
@@ -566,57 +768,7 @@ export default function Analysis() {
         </button>
       </form>
 
-      {loading && (
-        <div style={{ marginTop: 24, padding: "18px 20px", background: "#FDFCFA", border: `1px solid ${C.dim}`, borderRadius: 12 }}>
-          {[
-            { label: "Résolution du compte Riot…",   detail: "Vérification du Riot ID" },
-            { label: "Récupération des parties…",     detail: `Téléchargement jusqu’à ${count} games` },
-            { label: "Calcul des statistiques…",      detail: "Régression + test unilatéral" },
-          ].map((s, i) => {
-            const done    = i < loadingStep;
-            const active  = i === loadingStep;
-            return (
-              <div key={i} style={{
-                display: "flex", alignItems: "center", gap: 12,
-                padding: "8px 0",
-                opacity: done ? 0.45 : active ? 1 : 0.3,
-                borderBottom: i < 2 ? `1px solid ${C.dim}` : "none",
-              }}>
-                <div style={{
-                  width: 20, height: 20, borderRadius: "50%", flexShrink: 0,
-                  display: "flex", alignItems: "center", justifyContent: "center",
-                  background: done ? C.fair + "22" : active ? C.target + "22" : C.dim + "44",
-                  border: `1.5px solid ${done ? C.fair : active ? C.target : C.dim}`,
-                }}>
-                  {done
-                    ? <span style={{ fontSize: 11, color: C.fair, fontWeight: 700 }}>✓</span>
-                    : active
-                    ? <span style={{
-                        width: 8, height: 8, borderRadius: "50%",
-                        background: C.target, display: "block",
-                        animation: "spin 1s linear infinite",
-                      }} />
-                    : <span style={{ fontSize: 9, color: C.mute }}>{i + 1}</span>
-                  }
-                </div>
-                <div>
-                  <div style={{ fontSize: 13, fontWeight: active ? 600 : 400, color: active ? C.text : C.mute }}>
-                    {s.label}
-                  </div>
-                  {active && (
-                    <div style={{ fontSize: 11, color: C.mute, marginTop: 1, fontFamily: MONO }}>
-                      {s.detail}
-                    </div>
-                  )}
-                </div>
-              </div>
-            );
-          })}
-          <div style={{ marginTop: 12, fontSize: 11, color: C.mute, fontFamily: MONO }}>
-            ⏱ 2–5 min selon le cache Riot · Ne pas fermer la page
-          </div>
-        </div>
-      )}
+      {loading && <MatchmakingLoop loadingStep={loadingStep} count={count} />}
 
       {error && !loading && (
         <div style={{ marginTop: 18 }}>
