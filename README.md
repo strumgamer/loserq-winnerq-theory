@@ -51,7 +51,7 @@ Ce projet peut écarter ou confirmer le monde 2. Il ne peut pas trancher sur le 
 
 Bootstrap CGM de robustesse : p = 0.145 (9 999 itérations, 27 clusters).
 
-Corpus produit par commit `[HASH_COMMIT]`, juillet 2026 — pipeline `collect.py` v2 (colonnes `ally_rank_dispersion`, `lol_patch` ajoutées).
+Corpus produit par commit `607f5b1`, juillet 2026 — pipeline `collect.py` v2 (colonnes `ally_rank_dispersion`, `lol_patch` ajoutées).
 
 Pré-enregistrement : [Loser Queue EUW — Statistical Test of Targeted Matchmaking](https://osf.io/kdbxg/) · Déposé le 2026-06-30 · Amendement `prior_belief` déposé le 2026-07-01.
 
