@@ -23,11 +23,25 @@ Secondary analyses are exploratory and subject to Benjamini-Hochberg correction 
 | Queue timing | Longer queue time when in form | `queue_time ~ recent_wr_10`, slope > 0 |
 | Ladder comparison | Confirmatoire slopes < random sample | Mann-Whitney U, one-tailed |
 | Champion pool | More off-pool allies when target is in form | `off_pool_rate ~ recent_wr_10`, slope > 0 |
-| Internal dispersion (**exploratory**) | Higher ally rank spread when in form (joueur pivot) | `std(ally_rank) ~ recent_wr_10`, slope > 0 |
+| Internal dispersion (**exploratory**) | Higher ally rank spread when in form (joueur pivot) | `ally_rank_dispersion ~ recent_wr_10`, slope > 0 |
 
 Correction: BH applied to the three confirmatory secondary p-values. Primary (symmetry) is not penalized.
 
-**Note on Internal dispersion**: this analysis was specified on 2026-07-01, after observing the confirmatoire intermediate results (slope = −20.2, secondary estimators approaching 0.05). It is therefore **exploratory**, not confirmatory, and will be reported as such. It will only become confirmatory if tested on data collected after this specification date.
+**Note on Internal dispersion**: this analysis was specified on 2026-07-01, after observing pilot results (FE secondary p ≈ 0.07 in the initial pilot, approaching 0.05). It is therefore **exploratory**, not confirmatory, and will be reported as such. It will only become confirmatory if tested on data collected after this specification date.
+
+---
+
+## 2b. Prior Belief Analysis (OSF amendment 2026-07-01)
+
+**Variable**: `prior_belief` ∈ {yes, no, unsure} — collected at form submission for volunteer players only (not available for the random ladder sample).
+
+**Hypothesis**: Players who believe matchmaking is biased (`prior_belief = yes`) will not show a systematically stronger negative slope than those who do not. This tests whether the belief predicts future data rather than merely being correlated with past perception.
+
+**Analysis**: Interaction term `team_diff ~ recent_wr_10 × prior_belief` within the volunteer sub-corpus. Direction pre-specified: a stronger negative slope for `yes` players would indicate belief-consistent data; its absence would suggest belief is independent of the measurable signal.
+
+**Strictly correlational**: cannot establish causal direction. The association between `prior_belief` and slope may reflect: (a) belief formed from genuine signal, (b) belief coloring perception and game selection, or (c) shared confound. This analysis documents association only.
+
+**Scope**: Volunteer sub-corpus only. Not applicable to the random ladder sample. N depends on form recruitment; insufficient power if N < 50 volunteers.
 
 ---
 
@@ -80,7 +94,22 @@ The wild cluster bootstrap-t (CGM) on the primary estimator is a robustness chec
 
 ---
 
-## 7. Pre-registered Constants
+## 7. Pilot Phase Results (informational — not part of pre-registration)
+
+Collected July 2026 from 27 pilot accounts (volunteer recruitment). Pilot and confirmatory data are kept in separate directories (`batch_out/` vs `batch_out_confirmatory/`) and analysed separately.
+
+| Estimator | n_obs | n_players | slope | SE | p (one-tailed) | Verdict |
+| --- | --- | --- | --- | --- | --- | --- |
+| FE OLS NW-HAC | 2 561 | 27 | −25.4 | 21.5 | 0.119 | H0 |
+| CGM bootstrap | — | 27 | — | — | 0.145 | H0 |
+
+Secondary FE: β = −32.7, SE = 19.5, p = 0.046. Per protocol, this secondary estimator is non-decisional. It justifies the confirmatory phase but does not constitute evidence of an effect.
+
+Source commit: `607f5b1`
+
+---
+
+## 8. Pre-registered Constants
 
 ```
 alpha         = 0.05  (one-tailed)
