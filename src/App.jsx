@@ -26,6 +26,16 @@ const C = {
 const MONO = "ui-monospace,Menlo,'SF Mono',monospace";
 const SANS = "'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif";
 
+function useIsMobile(bp = 640) {
+  const [m, setM] = React.useState(() => window.innerWidth < bp);
+  React.useEffect(() => {
+    const fn = () => setM(window.innerWidth < bp);
+    window.addEventListener("resize", fn);
+    return () => window.removeEventListener("resize", fn);
+  }, [bp]);
+  return m;
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // SIMULATION
 // ─────────────────────────────────────────────────────────────────────────────
@@ -177,7 +187,7 @@ function Card({ children, style = {} }) {
 function Eyebrow({ children, color }) {
   return (
     <div style={{
-      fontSize: 10,
+      fontSize: 11,
       fontWeight: 600,
       letterSpacing: "0.1em",
       textTransform: "uppercase",
@@ -569,6 +579,7 @@ function CarryBars({ slope_1v9, slope_teamdep }) {
 }
 
 function RealDataSection({ poolSpread = 300 }) {
+  const mobile = useIsMobile();
   const { players, n_total, generated } = realData;
   const [view, setView] = useState("table"); // "table" | "scatter" | "carry"
 
@@ -712,7 +723,7 @@ function RealDataSection({ poolSpread = 300 }) {
       {view === "scatter" && (
         <div style={{
           display: "grid",
-          gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))",
+          gridTemplateColumns: mobile ? "1fr" : "repeat(auto-fill, minmax(240px, 1fr))",
           gap: 12,
         }}>
           {players.map(p => {
@@ -760,7 +771,7 @@ function RealDataSection({ poolSpread = 300 }) {
             Selon la théorie challenge mode, la pente devrait être plus négative
             sur les champions team-dep (alliés faibles = défaite assurée).
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: 12 }}>
+          <div style={{ display: "grid", gridTemplateColumns: mobile ? "1fr" : "repeat(auto-fill, minmax(260px, 1fr))", gap: 12 }}>
             {players.map(p => {
               const divergence = p.slope_1v9 != null && p.slope_teamdep != null
                 ? p.slope_1v9 - p.slope_teamdep : null;
@@ -921,6 +932,7 @@ function ParadoxSection({ seed, heroMMR, poolSpread, rigStrength, carryScore, ga
 
 // Étape 3 — Scatter toujours visible pour les deux moteurs
 function AlwaysOnScatterComparison({ heroMMR, poolSpread, rigStrength, carryScore, seed, games }) {
+  const mobile  = useIsMobile();
   const base    = { games, heroMMR, poolSpread, rigStrength, carryScore, seed };
   const rigSim  = useMemo(() => simulate({ ...base, engine: "rig" }),
     [seed, heroMMR, poolSpread, rigStrength, carryScore, games]);
@@ -935,9 +947,9 @@ function AlwaysOnScatterComparison({ heroMMR, poolSpread, rigStrength, carryScor
         La droite révèle si ces deux variables sont corrélées.
       </p>
 
-      <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
+      <div style={{ display: "flex", gap: 16, flexDirection: mobile ? "column" : "row" }}>
         {[["rig", rigSim, C.rig, "TRUQUÉ"], ["fair", fairSim, C.fair, "HONNÊTE"]].map(([key, sim, color, label]) => (
-          <div key={key} style={{ flex: 1, minWidth: 220 }}>
+          <div key={key} style={{ flex: 1, minWidth: 0 }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 8 }}>
               <Eyebrow color={color}>{label}</Eyebrow>
               <span style={{
@@ -1127,11 +1139,12 @@ function LogoOverlay({ open, onClose }) {
 function NavBar() {
   const loc = useLocation();
   const navigate = useNavigate();
+  const mobile = useIsMobile();
   const [logoOpen, setLogoOpen] = React.useState(false);
   const NAV = [
-    { to: "/",           label: "La Théorie"  },
-    { to: "/simulateur", label: "Simulateur"  },
-    { to: "/resultats",  label: "Résultats"  },
+    { to: "/",           label: mobile ? "Théorie"    : "La Théorie"  },
+    { to: "/simulateur", label: mobile ? "Simulateur" : "Simulateur"  },
+    { to: "/resultats",  label: mobile ? "Résultats"  : "Résultats"   },
   ];
   return (
     <>
@@ -1151,7 +1164,7 @@ function NavBar() {
             onClick={(e) => { e.preventDefault(); setLogoOpen(o => !o); navigate("/"); }}
             style={{
               background: 'none', border: 'none', padding: 0,
-              cursor: 'pointer', marginRight: 14, flexShrink: 0,
+              cursor: 'pointer', marginRight: mobile ? 6 : 14, flexShrink: 0,
               display: 'flex', alignItems: 'center',
             }}
             aria-label="Afficher le logo"
@@ -1159,15 +1172,15 @@ function NavBar() {
             <img
               src={logoSvg}
               alt="LQ/WQ logo"
-              style={{ height: 32, width: 32 }}
+              style={{ height: mobile ? 26 : 32, width: mobile ? 26 : 32 }}
             />
           </button>
           {NAV.map(({ to, label }) => {
             const active = loc.pathname === to;
             return (
               <Link key={to} to={to} style={{
-                padding: "5px 13px", borderRadius: 7,
-                fontSize: 13, fontWeight: active ? 600 : 400,
+                padding: mobile ? "5px 9px" : "5px 13px", borderRadius: 7,
+                fontSize: mobile ? 12 : 13, fontWeight: active ? 600 : 400,
                 color: active ? C.text : C.mute,
                 background: active ? C.card : "transparent",
                 textDecoration: "none",
@@ -1187,18 +1200,19 @@ function NavBar() {
 // ─────────────────────────────────────────────────────────────────────────────
 
 function TheoriePage() {
+  const mobile = useIsMobile();
   const [seed, setSeed] = useState(7);
   const BASE = { heroMMR: 2400, poolSpread: 180, rigStrength: 220, carryScore: 0.65, games: 300 };
 
   return (
-    <div style={{ padding: "40px 20px" }}>
+    <div style={{ padding: mobile ? "24px 16px" : "40px 20px" }}>
       <div style={{ maxWidth: 1040, margin: "0 auto" }}>
 
         <div style={{ marginBottom: 36 }}>
           <div style={{ fontSize: 10, letterSpacing: "0.15em", color: C.mute, fontFamily: MONO, marginBottom: 10 }}>
             MATCHMAKING · BANC D'ESSAI STATISTIQUE
           </div>
-          <h1 style={{ fontSize: 32, fontWeight: 800, margin: "0 0 10px", lineHeight: 1.1, letterSpacing: "-0.5px", fontFamily: SANS }}>
+          <h1 style={{ fontSize: mobile ? 22 : 32, fontWeight: 800, margin: "0 0 10px", lineHeight: 1.15, letterSpacing: "-0.5px", fontFamily: SANS }}>
             L'expérience décrite laisse-t-elle une trace détectable dans les données publiques ?
           </h1>
           <p style={{ color: C.mute, fontSize: 14, lineHeight: 1.65, maxWidth: 520, margin: 0 }}>
@@ -1209,6 +1223,17 @@ function TheoriePage() {
             disent. Le test ne peut pas prouver que la manipulation n'existe pas — il peut seulement
             montrer qu'elle ne laisse aucune trace détectable dans les données publiques.
           </p>
+          <div style={{ marginTop: 20, display: "flex", gap: 10, flexWrap: "wrap" }}>
+            <Link to="/resultats" style={{
+              padding: "10px 22px", background: C.target, color: C.ink,
+              borderRadius: 7, fontSize: 13, fontWeight: 700, textDecoration: "none",
+            }}>Voir les résultats →</Link>
+            <Link to="/resultats" style={{
+              padding: "10px 18px", background: "transparent", color: C.mute,
+              borderRadius: 7, fontSize: 13, fontWeight: 500, textDecoration: "none",
+              border: `1px solid ${C.dim}`,
+            }}>Tester mon compte</Link>
+          </div>
         </div>
 
         {/* 01 */}
@@ -1283,6 +1308,7 @@ function TheoriePage() {
 // ─────────────────────────────────────────────────────────────────────────────
 
 function SimulatorPage() {
+  const mobile = useIsMobile();
   const [engine,      setEngine]      = useState("rig");
   const [heroMMR,     setHeroMMR]     = useState(2400);
   const [poolSpread,  setPoolSpread]  = useState(180);
@@ -1310,14 +1336,14 @@ function SimulatorPage() {
     : "Split pusher (Tryndamere, Fiora)";
 
   return (
-    <div style={{ padding: "40px 20px" }}>
+    <div style={{ padding: mobile ? "24px 16px" : "40px 20px" }}>
       <div style={{ maxWidth: 1040, margin: "0 auto" }}>
 
         <div style={{ marginBottom: 28 }}>
           <div style={{ fontSize: 10, letterSpacing: "0.15em", color: C.mute, fontFamily: MONO, marginBottom: 8 }}>
             SIMULATEUR INTERACTIF
           </div>
-          <h2 style={{ fontSize: 26, fontWeight: 800, margin: "0 0 8px", letterSpacing: "-0.3px" }}>
+          <h2 style={{ fontSize: mobile ? 20 : 26, fontWeight: 800, margin: "0 0 8px", letterSpacing: "-0.3px" }}>
             Explorer les deux moteurs
           </h2>
           <p style={{ fontSize: 13, color: C.mute, lineHeight: 1.6, maxWidth: 520, margin: 0 }}>
@@ -1484,19 +1510,21 @@ function SimulatorPage() {
 // ─────────────────────────────────────────────────────────────────────────────
 
 function ResultatsPage() {
+  const mobile = useIsMobile();
   const { players, n_total } = realData;
   const n = players ? players.length : 0;
   const phase = n >= 10 ? "confirmatoire" : "pilote";
 
   return (
-    <div style={{ padding: "40px 20px" }}>
+    <div style={{ padding: mobile ? "24px 16px" : "40px 20px" }}>
       <div style={{ maxWidth: 1040, margin: "0 auto" }}>
 
-        <div style={{ marginBottom: 28 }}>
+        {/* Header */}
+        <div style={{ marginBottom: 16 }}>
           <div style={{ fontSize: 10, letterSpacing: "0.15em", color: C.mute, fontFamily: MONO, marginBottom: 8 }}>
             RÉSULTATS · API RIOT
           </div>
-          <h2 style={{ fontSize: 26, fontWeight: 800, margin: "0 0 8px", letterSpacing: "-0.3px" }}>
+          <h2 style={{ fontSize: mobile ? 20 : 26, fontWeight: 800, margin: "0 0 8px", letterSpacing: "-0.3px" }}>
             Données réelles
           </h2>
           <p style={{ fontSize: 13, color: C.mute, lineHeight: 1.6, maxWidth: 560, margin: 0 }}>
@@ -1509,20 +1537,9 @@ function ResultatsPage() {
           </p>
         </div>
 
-        {/* Analyser mon compte */}
-        <div style={{ marginBottom: 8 }}>
-          <div style={{ fontSize: 10, letterSpacing: "0.15em", color: C.mute, fontFamily: "monospace", marginBottom: 6 }}>
-            ANALYSER MON COMPTE
-          </div>
-          <p style={{ fontSize: 13, color: C.mute, margin: "0 0 14px" }}>
-            Entre ton Riot ID pour voir si ton matchmaking est neutre ou biaisé.
-          </p>
-        </div>
-        <Analysis />
-
-        {/* OSF — signal de crédibilité en premier */}
+        {/* OSF — crédibilité avant les chiffres */}
         <div style={{
-          marginTop: 24, marginBottom: 4,
+          marginBottom: 20,
           padding: "14px 18px",
           background: "rgba(200,155,10,0.06)",
           border: `1px solid rgba(200,155,10,0.25)`,
@@ -1536,9 +1553,23 @@ function ResultatsPage() {
           Garantit que les résultats ci-dessous ne sont pas fabriqués après coup.
         </div>
 
+        {/* Données réelles — raison principale de la visite */}
+        <RealDataSection />
+
+        {/* Analyser mon compte — maintenant motivé par les données vues */}
+        <div style={{ marginTop: 28, marginBottom: 8 }}>
+          <div style={{ fontSize: 10, letterSpacing: "0.15em", color: C.mute, fontFamily: "monospace", marginBottom: 6 }}>
+            ANALYSER MON COMPTE
+          </div>
+          <p style={{ fontSize: 13, color: C.mute, margin: "0 0 14px" }}>
+            Entre ton Riot ID pour voir si ton matchmaking est neutre ou biaisé.
+          </p>
+        </div>
+        <Analysis />
+
         {/* Limites structurelles */}
         <div style={{
-          margin: "16px 0",
+          margin: "24px 0 16px",
           padding: "14px 18px",
           background: C.paper,
           border: `1px solid ${C.dim}`,
@@ -1565,9 +1596,6 @@ function ResultatsPage() {
             dans la limite orthogonale (λ→0), une infinité — aucune étude externe ne pourrait conclure.
           </div>
         </div>
-
-        {/* Données */}
-        <RealDataSection />
 
         {/* Méthodologie */}
         <div style={{ marginTop: 16, fontSize: 12, color: C.mute, textAlign: "center" }}>
