@@ -8,7 +8,7 @@ import math, random, sys, os
 sys.path.insert(0, os.path.dirname(__file__))
 
 from analyze import linregress_nw, linregress
-from meta_analysis import linregress_nw_panel
+from meta_analysis import linregress_nw_panel, within_center, p_one_sided
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -85,11 +85,14 @@ def test_nw_panel_convergence(seed=42, n_per_cluster=500, n_clusters=5):
 # Test 4 — Calibration type I (test le plus important)
 # ─────────────────────────────────────────────────────────────────────────────
 
-def test_type1_calibration(n_reps=500, n=500, alpha=0.05):
+def test_type1_calibration(n_reps=500, alpha=0.05):
     """
-    Sur 500 datasets H0 (aucun signal), le taux de rejet doit être ≈ α.
-    Seeds déterministes via un générateur maître pour garantir reproductibilité
-    et indépendance des séquences (pas de seeds consécutives corrélées).
+    Taux de rejet type I sur le chemin primaire pré-enregistré :
+    within_center → linregress_nw_panel → p_one_sided.
+
+    Données panel null : 10 joueurs × 100 obs, team_diff iid N(0,150).
+    Seeds déterministes via générateur maître (pas de seeds consécutives corrélées).
+    Taux attendu ∈ [0.03, 0.07] pour α = 0.05.
     """
     master = random.Random(2026)
     seeds = [master.randrange(10**9) for _ in range(n_reps)]
@@ -97,31 +100,20 @@ def test_type1_calibration(n_reps=500, n=500, alpha=0.05):
     rejections = 0
     for seed in seeds:
         rng = random.Random(seed)
-        xs = [rng.random() for _ in range(n)]
-        ys = [rng.gauss(0, 150) for _ in range(n)]
-        reg = linregress_nw(xs, ys, max_lag=10)
-        if reg is None:
+        data = {
+            pid: [(rng.random(), rng.gauss(0, 150)) for _ in range(100)]
+            for pid in range(10)
+        }
+        xs, ys, gs = within_center(data)
+        if len(xs) < 30:
             continue
-        # p-value one-tailed depuis t_nw
-        t = reg.get("t_nw", reg.get("t", 0))
-        df = reg["n"] - 2
-        # Approximation p one-tailed (t < 0 = H1 direction)
-        import math as _math
-        if df >= 100:
-            z = t
-            k = 1.0 / (1.0 + 0.2316419 * abs(z))
-            b = [0.319381530, -0.356563782, 1.781477937, -1.821255978, 1.330274429]
-            poly = k*(b[0]+k*(b[1]+k*(b[2]+k*(b[3]+k*b[4]))))
-            phi = _math.exp(-0.5*z*z) / _math.sqrt(2*_math.pi)
-            p_right = min(max(phi*poly, 0), 1)
-            p_one = p_right if t < 0 else 1 - p_right
-        else:
-            p_one = 0.5
-        if p_one < alpha:
+        res = linregress_nw_panel(xs, ys, gs)
+        if res is None:
+            continue
+        if p_one_sided(res["t_nw"]) < alpha:
             rejections += 1
 
     rate = rejections / n_reps
-    # Intervalle [0.03, 0.07] = ±2σ pour n_reps=500, α=0.05
     assert 0.03 <= rate <= 0.07, (
         f"Taux de rejet type I = {rate:.3f} hors de [0.03, 0.07]. "
         f"Pipeline sur-rejette ou sous-rejette H0."
