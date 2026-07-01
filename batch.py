@@ -151,7 +151,7 @@ def auto_sample(api_key, platform, mass_region, per_tier):
 # Collecte : on appelle collect.py en sous-processus pour chaque joueur
 # ─────────────────────────────────────────────────────────────────────────────
 
-def collect_player(riot_id, platform, region, count, out_csv, cache_dir):
+def collect_player(riot_id, platform, region, count, out_csv, cache_dir, days=None):
     env = os.environ.copy()
     cmd = [
         sys.executable, "collect.py",
@@ -162,9 +162,60 @@ def collect_player(riot_id, platform, region, count, out_csv, cache_dir):
         "--out", out_csv,
         "--cache", cache_dir,
     ]
+    if days is not None:
+        cmd += ["--days", str(days)]
     print(f"\n  → Collecte : {riot_id}  ({count} games)…")
     result = subprocess.run(cmd, env=env, capture_output=False)
     return result.returncode == 0
+
+
+def _normalize_id(riot_id: str) -> str:
+    """Normalise un Riot ID pour la jointure : minuscule, espaces autour du # supprimés."""
+    rid = riot_id.strip().lower()
+    if "#" in rid:
+        name, tag = rid.split("#", 1)
+        rid = name.rstrip() + "#" + tag.lstrip()
+    return rid
+
+
+def load_submissions(submissions_file: str) -> dict:
+    """
+    Lit submissions.json et retourne un dict normalisé :
+    { riot_id_normalisé : {"riot_id": original, "region": ..., "platform": ..., "prior_belief": ...} }
+    """
+    if not os.path.exists(submissions_file):
+        print(f"ERREUR : fichier introuvable : {submissions_file}")
+        sys.exit(1)
+    with open(submissions_file, encoding="utf-8") as f:
+        data = json.load(f)
+    result = {}
+    for entry in data:
+        key = _normalize_id(entry["riot_id"])
+        result[key] = entry
+    return result
+
+
+def inject_prior_belief(csv_path: str, prior_belief: str) -> None:
+    """Ajoute la colonne prior_belief à toutes les lignes d'un CSV existant."""
+    rows = []
+    with open(csv_path, encoding="utf-8") as f:
+        reader = csv.DictReader(f)
+        fields = reader.fieldnames or []
+        rows = list(reader)
+
+    if not rows:
+        return
+
+    if "prior_belief" not in fields:
+        fields = list(fields) + ["prior_belief"]
+
+    for row in rows:
+        row["prior_belief"] = prior_belief
+
+    with open(csv_path, "w", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=fields)
+        writer.writeheader()
+        writer.writerows(rows)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -292,14 +343,16 @@ def quick_stats(csv_path):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--auto",      action="store_true", help="Auto-sampler des joueurs par elo")
-    ap.add_argument("--riot-ids",  default="",  help="Liste de Riot IDs séparés par des virgules")
-    ap.add_argument("--per-tier",  type=int, default=1, help="Joueurs par palier (auto uniquement)")
-    ap.add_argument("--region",    required=True, help="Région mass : europe|americas|asia|sea")
-    ap.add_argument("--platform",  required=True, help="Plateforme : euw1|na1|kr|…")
-    ap.add_argument("--count",     type=int, default=100, help="Games par joueur (défaut 100)")
-    ap.add_argument("--out-dir",   default="batch_out", help="Dossier de sortie")
-    ap.add_argument("--cache",     default="riot_cache", help="Cache partagé")
+    ap.add_argument("--auto",             action="store_true", help="Auto-sampler des joueurs par elo")
+    ap.add_argument("--riot-ids",         default="",  help="Liste de Riot IDs séparés par des virgules")
+    ap.add_argument("--from-submissions", default="",  help="Chemin vers submissions.json (pont formulaire→batch)")
+    ap.add_argument("--per-tier",         type=int, default=1, help="Joueurs par palier (auto uniquement)")
+    ap.add_argument("--region",           default="", help="Région mass : europe|americas|asia|sea (défaut : lu depuis submissions)")
+    ap.add_argument("--platform",         default="", help="Plateforme : euw1|na1|kr|… (défaut : lu depuis submissions)")
+    ap.add_argument("--count",            type=int, default=100, help="Games par joueur (défaut 100)")
+    ap.add_argument("--days",             type=int, default=None, help="Ne garder que les games des N derniers jours")
+    ap.add_argument("--out-dir",          default="batch_out", help="Dossier de sortie")
+    ap.add_argument("--cache",            default="riot_cache", help="Cache partagé")
     args = ap.parse_args()
 
     api_key = os.environ.get("RIOT_API_KEY")
@@ -310,19 +363,38 @@ def main():
     Path(args.out_dir).mkdir(exist_ok=True)
 
     # ── Collecte de la liste des joueurs ─────────────────────────────────────
-    players = []  # liste de (riot_id, elo_label)
+    # players : liste de (riot_id, elo_label, region, platform, prior_belief_or_None)
+    players = []
+    submissions_index = {}  # riot_id_normalisé → entry, pour jointure prior_belief
 
-    if args.auto:
+    if args.from_submissions:
+        submissions_index = load_submissions(args.from_submissions)
+        for norm_id, entry in submissions_index.items():
+            players.append((
+                entry["riot_id"],
+                "FORMULAIRE",
+                entry.get("region",   args.region   or "europe"),
+                entry.get("platform", args.platform or "euw1"),
+                entry.get("prior_belief", "unsure"),
+            ))
+        print(f"\n{len(players)} joueurs chargés depuis {args.from_submissions}")
+    elif args.auto:
+        if not args.region or not args.platform:
+            print("ERREUR : --auto requiert --region et --platform")
+            sys.exit(1)
         print("\n=== Sampling automatique par elo ===")
         sampled = auto_sample(api_key, args.platform, args.region, args.per_tier)
-        players = [(rid, label) for rid, label, _ in sampled]
+        players = [(rid, label, args.region, args.platform, None) for rid, label, _ in sampled]
     elif args.riot_ids:
+        if not args.region or not args.platform:
+            print("ERREUR : --riot-ids requiert --region et --platform")
+            sys.exit(1)
         for rid in args.riot_ids.split(","):
             rid = rid.strip()
             if rid:
-                players.append((rid, "MANUEL"))
+                players.append((rid, "MANUEL", args.region, args.platform, None))
     else:
-        print("ERREUR : utilise --auto ou --riot-ids")
+        print("ERREUR : utilise --auto, --riot-ids ou --from-submissions")
         sys.exit(1)
 
     if not players:
@@ -333,13 +405,24 @@ def main():
 
     # ── Collecte des games ───────────────────────────────────────────────────
     results = []
-    for i, (riot_id, elo_label) in enumerate(players, 1):
+    for i, (riot_id, elo_label, region, platform, prior_belief) in enumerate(players, 1):
         safe_name = riot_id.replace("#", "_").replace(" ", "_")
         out_csv   = f"{args.out_dir}/{safe_name}.csv"
         cache_dir = f"{args.cache}/{safe_name}"
 
+        # Checkpoint : skip si CSV non-vide déjà présent
+        if os.path.exists(out_csv) and os.path.getsize(out_csv) > 0:
+            print(f"\n[{i}/{len(players)}] {riot_id}  ({elo_label}) — déjà collecté, skip")
+            stats = quick_stats(out_csv)
+            if stats:
+                stats["riot_id"] = riot_id
+                stats["elo"]     = elo_label
+                stats["error"]   = False
+                results.append(stats)
+            continue
+
         print(f"\n[{i}/{len(players)}] {riot_id}  ({elo_label})")
-        ok = collect_player(riot_id, args.platform, args.region, args.count, out_csv, cache_dir)
+        ok = collect_player(riot_id, platform, region, args.count, out_csv, cache_dir, days=args.days)
         if not ok:
             print(f"  ✗ Collecte échouée pour {riot_id}")
             results.append({"riot_id": riot_id, "elo": elo_label, "error": True})
@@ -350,6 +433,10 @@ def main():
             print(f"  ✗ CSV vide pour {riot_id}")
             results.append({"riot_id": riot_id, "elo": elo_label, "error": True})
             continue
+
+        # Jointure prior_belief : injecte la valeur dans le CSV si disponible
+        if prior_belief is not None:
+            inject_prior_belief(out_csv, prior_belief)
 
         stats["riot_id"] = riot_id
         stats["elo"]     = elo_label

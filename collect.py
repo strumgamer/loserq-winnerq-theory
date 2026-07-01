@@ -297,6 +297,15 @@ def extract_row(match, my_puuid, platform, api_key, cache, champ_pool):
     avg_enemy = sum(enemy_scores) / len(enemy_scores) if enemy_scores else None
     team_diff = (avg_ally - avg_enemy) if (avg_ally is not None and avg_enemy is not None) else None
 
+    def _std(vals):
+        if len(vals) < 2:
+            return None
+        m = sum(vals) / len(vals)
+        return (sum((v - m) ** 2 for v in vals) / len(vals)) ** 0.5
+
+    ally_rank_dispersion  = round(_std(ally_scores),  1) if ally_scores  else None
+    enemy_rank_dispersion = round(_std(enemy_scores), 1) if enemy_scores else None
+
     # ── Deltas par duel de lane ──────────────────────────────────────────────
     def player_at(players, pos):
         for p in players:
@@ -347,8 +356,10 @@ def extract_row(match, my_puuid, platform, api_key, cache, champ_pool):
         "team_diff":         round(team_diff, 1) if team_diff is not None else None,
         "avg_ally_winrate":  round(sum(ally_wrs)  / len(ally_wrs),  3) if ally_wrs  else None,
         "avg_enemy_winrate": round(sum(enemy_wrs) / len(enemy_wrs), 3) if enemy_wrs else None,
-        "n_ally_ranked":     len(ally_scores),
-        "n_enemy_ranked":    len(enemy_scores),
+        "n_ally_ranked":          len(ally_scores),
+        "n_enemy_ranked":         len(enemy_scores),
+        "ally_rank_dispersion":   ally_rank_dispersion,
+        "enemy_rank_dispersion":  enemy_rank_dispersion,
         # duels de lane (allié - ennemi, négatif = allié plus faible)
         **lane_diffs,
         "my_lane_diff":    my_lane_diff,
