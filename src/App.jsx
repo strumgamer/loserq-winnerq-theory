@@ -644,15 +644,22 @@ function RealDataSection({ poolSpread = 300 }) {
       {/* ── Vue tableau ── */}
       {view === "table" && (
         <div>
-          {/* Légende */}
+          {/* Résultat agrégé pré-enregistré */}
           <div style={{
-            marginBottom: 14, padding: "10px 14px",
+            marginBottom: 14, padding: "12px 16px",
             background: C.paper, borderRadius: 8,
-            fontSize: 12, color: C.mute, lineHeight: 1.65,
             border: `1px solid ${C.dim}`,
           }}>
-            <span style={{ color: C.rig }}>●</span> <b style={{ color: C.text }}>Signal</b> = quand ce joueur était en forme, ses alliés étaient plus faibles que ses ennemis.{"  "}
-            <span style={{ color: C.fair }}>●</span> <b style={{ color: C.text }}>Honnête</b> = aucune corrélation détectée.
+            <div style={{ fontSize: 11, color: C.mute, fontFamily: MONO, letterSpacing: "0.05em", marginBottom: 4 }}>
+              RÉSULTAT AGRÉGÉ · estimateur pré-enregistré (27 joueurs · 2 561 obs)
+            </div>
+            <div style={{ fontSize: 15, fontWeight: 700, color: C.fair, fontFamily: MONO }}>
+              pente = −20,2 &nbsp;·&nbsp; SE = 21,5 &nbsp;·&nbsp; p = 0,17 &nbsp;→&nbsp; <span style={{ color: C.fair }}>H0 conservée</span>
+            </div>
+            <div style={{ fontSize: 11, color: C.mute, marginTop: 6, lineHeight: 1.6 }}>
+              Les pentes individuelles ci-dessous varient largement par pur hasard — c'est précisément pourquoi seul le résultat agrégé compte.
+              Une pente de −200 sur 100 games est attendue sous H0 (monde honnête). Le tableau illustre la variance que le simulateur prédit.
+            </div>
           </div>
 
           <div style={{ overflowX: "auto" }}>
@@ -664,7 +671,6 @@ function RealDataSection({ poolSpread = 300 }) {
                     { label: "Games",   align: "right" },
                     { label: "WR",      align: "right" },
                     { label: "Pente",   align: "right" },
-                    { label: "Verdict", align: "right" },
                   ].map(({ label, align }) => (
                     <th key={label} style={{
                       padding: "6px 10px", textAlign: align,
@@ -675,9 +681,7 @@ function RealDataSection({ poolSpread = 300 }) {
                 </tr>
               </thead>
               <tbody>
-                {players.map((p, i) => {
-                  const v = verdict(p.slope);
-                  return (
+                {players.map((p, i) => (
                     <tr key={p.id} style={{
                       borderBottom: `1px solid ${C.dim}`,
                       background: i % 2 === 0 ? "transparent" : "rgba(0,0,0,0.03)",
@@ -686,27 +690,20 @@ function RealDataSection({ poolSpread = 300 }) {
                       <td style={{ padding: "10px 10px", color: C.mute, textAlign: "right", fontFamily: MONO }}>{p.n}</td>
                       <td style={{ padding: "10px 10px", textAlign: "right", fontFamily: MONO, color: C.text }}>{p.wr}%</td>
                       <td style={{ padding: "10px 10px", textAlign: "right", fontFamily: MONO,
-                        color: p.slope < -80 ? C.rig : p.slope < -30 ? C.target : C.fair,
-                        fontWeight: 700 }}>
+                        color: C.mute, fontWeight: 600 }}>
                         {p.slope != null ? (p.slope > 0 ? "+" : "") + p.slope.toFixed(0) : "—"}
                       </td>
-                      <td style={{ padding: "10px 10px", textAlign: "right" }}>
-                        <span style={{
-                          fontSize: 11, color: v.color, fontWeight: 600,
-                          background: v.color + "18", borderRadius: 20, padding: "3px 10px",
-                        }}>{v.label}</span>
-                      </td>
                     </tr>
-                  );
-                })}
+                ))}
               </tbody>
             </table>
           </div>
 
           <div style={{ marginTop: 12, fontSize: 11, color: C.mute, lineHeight: 1.6 }}>
-            <b style={{ color: C.text }}>Pente</b> : corrélation entre la forme récente et l'écart d'équipe.
-            Négatif = équipe plus faible quand le joueur est en forme (loser queue).
-            Positif = l'inverse. Colonnes avancées (R², Ép., biais) disponibles via l'onglet Scatter.
+            <b style={{ color: C.text }}>Pente</b> : corrélation OLS brute (sans correction HAC) entre la forme récente et l'écart d'équipe.
+            Négatif = équipe plus faible quand le joueur est en forme. Positif = l'inverse.
+            À ~100 games, l'intervalle de confiance à 95 % couvre typiquement ±200 pts — ces valeurs individuelles ne permettent pas de conclure.
+            Colonnes avancées disponibles via l'onglet Scatter.
           </div>
         </div>
       )}
