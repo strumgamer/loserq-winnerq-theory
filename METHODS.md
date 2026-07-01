@@ -23,9 +23,11 @@ Secondary analyses are exploratory and subject to Benjamini-Hochberg correction 
 | Queue timing | Longer queue time when in form | `queue_time ~ recent_wr_10`, slope > 0 |
 | Ladder comparison | Confirmatoire slopes < random sample | Mann-Whitney U, one-tailed |
 | Champion pool | More off-pool allies when target is in form | `off_pool_rate ~ recent_wr_10`, slope > 0 |
-| Internal dispersion | Higher ally rank spread when in form (joueur pivot) | `std(ally_rank) ~ recent_wr_10`, slope > 0 |
+| Internal dispersion (**exploratory**) | Higher ally rank spread when in form (joueur pivot) | `std(ally_rank) ~ recent_wr_10`, slope > 0 |
 
-Correction: BH applied to the three secondary p-values. Primary (symmetry) is not penalized.
+Correction: BH applied to the three confirmatory secondary p-values. Primary (symmetry) is not penalized.
+
+**Note on Internal dispersion**: this analysis was specified on 2026-07-01, after observing the confirmatoire intermediate results (slope = −20.2, secondary estimators approaching 0.05). It is therefore **exploratory**, not confirmatory, and will be reported as such. It will only become confirmatory if tested on data collected after this specification date.
 
 ---
 

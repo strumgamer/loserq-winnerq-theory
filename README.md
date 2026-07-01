@@ -1,6 +1,6 @@
 # loserq_winnerq_theory
 
-**Statut** : ✓ H0 conservée — phase confirmatoire intermédiaire (27 joueurs, 2 561 obs within-player)
+**Statut** : ✓ H0 conservée — phase confirmatoire intermédiaire (27 joueurs, 2 561 obs within-player — analyse ; 22 joueurs, 2 055 games — visualisation site)
 
 Test statistique empirique de la théorie "loser/winner queue" dans League of Legends via la Riot API publique.
 
@@ -144,6 +144,12 @@ Le plan d'analyse complet est dans `preregistration_template.md`. Il doit être 
 - La clé Riot doit être injectée via variable d'environnement uniquement (`RIOT_API_KEY`)
 - Ne jamais committer `riot_cache/`, `batch_out/`, `games.csv`, `.env`
 - La clé de développement expire toutes les 24 h — regénérer sur [developer.riotgames.com](https://developer.riotgames.com)
+
+---
+
+## Remerciements
+
+L'ensemble des choix méthodologiques, statistiques et interprétatifs est sous la responsabilité de l'auteur. Ce projet a été développé avec l'assistance d'un modèle de langage (Claude, Anthropic) pour la mise en œuvre technique et la relecture critique.
 
 ---
 
