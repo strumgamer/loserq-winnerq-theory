@@ -226,14 +226,14 @@ function Histogram({ values, min, max, bins, color, unit = "", highlightNeg }) {
   const bars = useMemo(() => histBins(values, min, max, bins), [values, min, max, bins]);
   const peak = Math.max(1, ...bars.map(b => b.count));
   const mean = batchStats(values).mean;
-  const W = 520, H = 100;
+  const W = 520, H = 100, PAD_TOP = 6;
   const bw = W / bins;
   const toX = v => ((v - min) / (max - min)) * W;
 
   return (
     <svg width="100%" viewBox={`0 0 ${W} ${H + 22}`} style={{ display: "block" }}>
       {bars.map((b, i) => {
-        const bh    = (b.count / peak) * H;
+        const bh    = (b.count / peak) * (H - PAD_TOP);
         const isNeg = highlightNeg && b.x1 <= 0;
         return (
           <rect key={i}
@@ -1434,7 +1434,7 @@ function TheoriePage() {
           <b style={{ color: C.text }}>Comment lire ce graphe :</b>{" "}
           si le jeu te truque, quand tu gagnes beaucoup (droite sur l'axe X),
           tes alliés devraient être plus faibles (valeur négative sur l'axe Y).
-          Une droite qui penche vers le bas = signature loser queue.
+          Une droite qui penche vers le bas = signature d'un matchmaking truqué.
         </div>
         <AlwaysOnScatterComparison {...BASE} seed={seed} />
         <Callout color={C.rig}>
@@ -1626,7 +1626,7 @@ function SimulatorPage() {
                 </div>
                 {[
                   { label: "Win-rate final", values: batch.winRates, min: 35, max: 65, bins: 24, color: batchEngine === "rig" ? C.rig : C.fair, unit: "%" },
-                  { label: "Pentes de régression — à gauche de 0 = signature loser queue", values: batch.slopes, min: -400, max: 200, bins: 24, color: C.target, unit: "", highlightNeg: true },
+                  { label: "Pentes de régression — à gauche de 0 = signature d'un matchmaking truqué", values: batch.slopes, min: -400, max: 200, bins: 24, color: C.target, unit: "", highlightNeg: true },
                   { label: "Série de défaites max", values: batch.maxLosses, min: 0, max: 20, bins: 20, color: C.rig, unit: "" },
                 ].map(({ label, ...props }) => (
                   <div key={label} style={{ marginBottom: 20 }}>
