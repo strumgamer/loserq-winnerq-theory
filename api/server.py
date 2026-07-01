@@ -29,6 +29,7 @@ from collect import (
     get_match_ids,
     get_match,
     extract_row,
+    riot_get,
 )
 from analyze import linregress_nw
 from anonymize import find_episodes, wr_unfav, slope_by_carry, mean_team_diff
@@ -347,9 +348,6 @@ def analyze(req: AnalyzeRequest, request: Request):
 
     # ── 1. Résolution PUUID ──────────────────────────────────────────────────
     try:
-        # get_puuid appelle sys.exit() si introuvable — on le court-circuite
-        # en vérifiant le format puis en appelant riot_get directement
-        from collect import riot_get
         if "#" not in riot_id_clean:
             raise HTTPException(
                 status_code=400,
