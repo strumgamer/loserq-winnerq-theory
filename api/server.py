@@ -7,6 +7,8 @@ import sys
 import json
 import hashlib
 import datetime
+import secrets
+import time
 
 # Allow imports from project root (collect.py, analyze.py, anonymize.py)
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
@@ -71,6 +73,11 @@ MAX_COUNT = 200
 
 _RIOT_ID_RE = _re.compile(r"^[^#]{1,50}#[A-Za-z0-9]{2,5}$")
 
+# Vérification d'identité par changement d'icône de profil
+# In-memory, éphémère (perdu au redémarrage Render) — TTL court, acceptable
+_icon_challenges: dict = {}  # puuid → {original_icon_id, riot_id, expires_at}
+_verified_tokens: dict  = {}  # token → {riot_id_lower, expires_at}
+
 
 def _hash_ip(ip: str) -> str:
     return hashlib.sha256(ip.encode()).hexdigest()[:16]
@@ -114,6 +121,7 @@ class ContributeRequest(BaseModel):
     platform: str = "euw1"
     consent: bool
     prior_belief: str = "unsure"
+    verification_token: str
 
     @field_validator("riot_id")
     @classmethod
@@ -125,6 +133,13 @@ class ContributeRequest(BaseModel):
     def validate_belief(cls, v: str) -> str:
         if v not in ("yes", "no", "unsure"):
             raise ValueError("prior_belief doit être yes/no/unsure")
+        return v
+
+    @field_validator("verification_token")
+    @classmethod
+    def validate_token(cls, v: str) -> str:
+        if not v or len(v) < 8:
+            raise ValueError("Token de vérification invalide")
         return v
 
 
@@ -190,6 +205,18 @@ def contribute(req: ContributeRequest, request: Request):
     if not req.consent:
         raise HTTPException(status_code=400, detail="Consentement requis")
 
+    # Valider le token de vérification par icône
+    token_data = _verified_tokens.get(req.verification_token)
+    if not token_data:
+        raise HTTPException(status_code=401, detail="Vérification d'identité requise — vérifie ton compte via l'icône")
+    if time.time() > token_data["expires_at"]:
+        _verified_tokens.pop(req.verification_token, None)
+        raise HTTPException(status_code=401, detail="Session expirée — relance la vérification")
+    if token_data["riot_id_lower"] != req.riot_id.lower():
+        raise HTTPException(status_code=401, detail="Token invalide pour ce Riot ID")
+    # Consommer le token (usage unique)
+    _verified_tokens.pop(req.verification_token, None)
+
     submissions = []
     if os.path.exists(_SUBMISSIONS_FILE):
         try:
@@ -229,6 +256,80 @@ def get_submissions(token: str = ""):
         data = json.load(f)
 
     return {"count": len(data), "submissions": data}
+
+
+@app.get("/api/verify/challenge")
+@limiter.limit("10/hour")
+def verify_challenge(request: Request, riot_id: str, platform: str = "euw1", region: str = "europe"):
+    """Étape 1 : enregistre l'icône actuelle du joueur comme baseline de vérification."""
+    if not _re.fullmatch(_RIOT_ID_RE, riot_id):
+        raise HTTPException(status_code=422, detail="Riot ID invalide")
+    api_key = _api_key()
+
+    name, tag = riot_id.split("#", 1)
+    account = riot_get(
+        f"https://{region}.api.riotgames.com/riot/account/v1/accounts/by-riot-id/{name}/{tag}",
+        api_key,
+    )
+    if not account:
+        raise HTTPException(status_code=404, detail="Joueur introuvable — vérifie ton Riot ID et ton serveur")
+
+    puuid = account["puuid"]
+    summoner = riot_get(
+        f"https://{platform}.api.riotgames.com/lol/summoner/v4/summoners/by-puuid/{puuid}",
+        api_key,
+    )
+    if not summoner:
+        raise HTTPException(status_code=404, detail="Données invocateur introuvables")
+
+    _icon_challenges[puuid] = {
+        "original_icon_id": summoner["profileIconId"],
+        "riot_id":          riot_id,
+        "expires_at":       time.time() + 900,  # 15 min
+    }
+    return {"status": "challenge_created"}
+
+
+@app.get("/api/verify/check")
+@limiter.limit("30/hour")
+def verify_check(request: Request, riot_id: str, platform: str = "euw1", region: str = "europe"):
+    """Étape 2 : vérifie que l'icône a changé → génère un token de soumission."""
+    if not _re.fullmatch(_RIOT_ID_RE, riot_id):
+        raise HTTPException(status_code=422, detail="Riot ID invalide")
+    api_key = _api_key()
+
+    name, tag = riot_id.split("#", 1)
+    account = riot_get(
+        f"https://{region}.api.riotgames.com/riot/account/v1/accounts/by-riot-id/{name}/{tag}",
+        api_key,
+    )
+    if not account:
+        raise HTTPException(status_code=404, detail="Joueur introuvable")
+
+    puuid = account["puuid"]
+    challenge = _icon_challenges.get(puuid)
+    if not challenge or time.time() > challenge["expires_at"]:
+        _icon_challenges.pop(puuid, None)
+        raise HTTPException(status_code=410, detail="Challenge expiré — relance la vérification depuis le début")
+
+    summoner = riot_get(
+        f"https://{platform}.api.riotgames.com/lol/summoner/v4/summoners/by-puuid/{puuid}",
+        api_key,
+    )
+    if not summoner:
+        raise HTTPException(status_code=404, detail="Données invocateur introuvables")
+
+    if summoner["profileIconId"] == challenge["original_icon_id"]:
+        return {"verified": False, "message": "Icône inchangée. Si tu viens de changer ton icône, attends 30 secondes et réessaie — l'API Riot peut mettre quelques instants à se mettre à jour."}
+
+    # Vérifié : générer un token usage unique (30 min pour compléter le formulaire)
+    token = secrets.token_urlsafe(16)
+    _verified_tokens[token] = {
+        "riot_id_lower": riot_id.lower(),
+        "expires_at":    time.time() + 1800,
+    }
+    _icon_challenges.pop(puuid, None)
+    return {"verified": True, "token": token}
 
 
 @app.post("/api/analyze")

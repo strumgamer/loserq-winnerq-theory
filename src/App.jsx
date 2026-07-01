@@ -1786,16 +1786,82 @@ const CONTRIB_SERVERS = {
 
 function ContribuerPage() {
   const mobile = useIsMobile();
-  const [riotId,      setRiotId]      = useState("");
-  const [server,      setServer]      = useState("euw1");
-  const [belief,      setBelief]      = useState("unsure");
-  const [consent,     setConsent]     = useState(false);
-  const [status,      setStatus]      = useState(null); // null | "loading" | "ok" | "duplicate" | "error"
-  const [errorMsg,    setErrorMsg]    = useState("");
+  const [riotId,     setRiotId]     = useState("");
+  const [server,     setServer]     = useState("euw1");
+  const [belief,     setBelief]     = useState("unsure");
+  const [consent,    setConsent]    = useState(false);
+  // Vérification par icône : null | "loading" | "pending" | "checking" | "done"
+  const [verifyStep, setVerifyStep] = useState(null);
+  const [verifyMsg,  setVerifyMsg]  = useState(null);
+  const [verifToken, setVerifToken] = useState(null);
+  // Soumission finale
+  const [status,     setStatus]     = useState(null); // null | "loading" | "ok" | "duplicate" | "error"
+  const [errorMsg,   setErrorMsg]   = useState("");
+
+  function resetVerify() {
+    setVerifyStep(null);
+    setVerifyMsg(null);
+    setVerifToken(null);
+  }
+
+  async function handleChallenge() {
+    if (!riotId.trim() || !riotId.includes("#")) {
+      setVerifyMsg("Format invalide — ex : Pseudo#EUW");
+      return;
+    }
+    setVerifyStep("loading");
+    setVerifyMsg(null);
+    const srv = CONTRIB_SERVERS[server];
+    try {
+      const res = await fetch(
+        `${CONTRIB_API}/api/verify/challenge?riot_id=${encodeURIComponent(riotId.trim())}&platform=${srv.platform}&region=${srv.region}`
+      );
+      const data = await res.json();
+      if (!res.ok) {
+        setVerifyStep(null);
+        setVerifyMsg(
+          res.status === 503
+            ? "La vérification est temporairement indisponible — réessaie dans quelques heures."
+            : (data.detail || "Joueur introuvable — vérifie ton Riot ID et ton serveur.")
+        );
+      } else {
+        setVerifyStep("pending");
+      }
+    } catch {
+      setVerifyStep(null);
+      setVerifyMsg("Impossible de contacter le serveur. Réessaie dans quelques minutes.");
+    }
+  }
+
+  async function handleVerifyCheck() {
+    setVerifyStep("checking");
+    setVerifyMsg(null);
+    const srv = CONTRIB_SERVERS[server];
+    try {
+      const res = await fetch(
+        `${CONTRIB_API}/api/verify/check?riot_id=${encodeURIComponent(riotId.trim())}&platform=${srv.platform}&region=${srv.region}`
+      );
+      const data = await res.json();
+      if (!res.ok) {
+        setVerifyStep("pending");
+        setVerifyMsg(data.detail || "Erreur — réessaie.");
+      } else if (!data.verified) {
+        setVerifyStep("pending");
+        setVerifyMsg("Icône inchangée — change ton icône dans le client LoL, puis réessaie.");
+      } else {
+        setVerifToken(data.token);
+        setVerifyStep("done");
+        setVerifyMsg(null);
+      }
+    } catch {
+      setVerifyStep("pending");
+      setVerifyMsg("Impossible de contacter le serveur. Réessaie.");
+    }
+  }
 
   async function handleSubmit(e) {
     e.preventDefault();
-    if (!consent) return;
+    if (!consent || !verifToken) return;
     setStatus("loading");
     setErrorMsg("");
     try {
@@ -1803,11 +1869,12 @@ function ContribuerPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          riot_id:      riotId.trim(),
-          region:       CONTRIB_SERVERS[server].region,
-          platform:     CONTRIB_SERVERS[server].platform,
-          prior_belief: belief,
-          consent:      true,
+          riot_id:            riotId.trim(),
+          region:             CONTRIB_SERVERS[server].region,
+          platform:           CONTRIB_SERVERS[server].platform,
+          prior_belief:       belief,
+          consent:            true,
+          verification_token: verifToken,
         }),
       });
       const data = await res.json();
@@ -1847,9 +1914,8 @@ function ContribuerPage() {
             Compte enregistré
           </p>
           <p style={{ fontSize: 14, color: C.mute, margin: 0, lineHeight: 1.6 }}>
-            Ton Riot ID a été ajouté à la liste de collecte. Tes données seront
-            intégrées au corpus lors du prochain batch de collecte, et publiées sous
-            forme anonymisée dans les résultats.
+            Ton Riot ID a été ajouté à la liste de collecte. Tes données seront intégrées
+            au corpus lors du prochain batch de collecte, et publiées sous forme anonymisée.
           </p>
         </div>
       ) : (
@@ -1864,13 +1930,15 @@ function ContribuerPage() {
               type="text"
               placeholder="Pseudo#EUW"
               value={riotId}
-              onChange={e => setRiotId(e.target.value)}
+              onChange={e => { setRiotId(e.target.value); resetVerify(); }}
+              disabled={verifyStep === "done"}
               required
               style={{
                 width: "100%", boxSizing: "border-box",
                 padding: "10px 14px", borderRadius: 7, border: `1px solid ${C.dim}`,
                 background: C.paper, color: C.text, fontSize: 14,
                 fontFamily: MONO, outline: "none",
+                opacity: verifyStep === "done" ? 0.6 : 1,
               }}
             />
           </div>
@@ -1882,11 +1950,13 @@ function ContribuerPage() {
             </label>
             <select
               value={server}
-              onChange={e => setServer(e.target.value)}
+              onChange={e => { setServer(e.target.value); resetVerify(); }}
+              disabled={verifyStep === "done"}
               style={{
                 width: "100%", boxSizing: "border-box",
                 padding: "10px 14px", borderRadius: 7, border: `1px solid ${C.dim}`,
                 background: C.paper, color: C.text, fontSize: 14,
+                opacity: verifyStep === "done" ? 0.6 : 1,
               }}
             >
               {Object.entries(CONTRIB_SERVERS).map(([key, { label }]) => (
@@ -1895,74 +1965,161 @@ function ContribuerPage() {
             </select>
           </div>
 
-          {/* Prior belief — optionnel */}
-          <div>
-            <label style={{ fontSize: 13, fontWeight: 600, color: C.text, display: "block", marginBottom: 8 }}>
-              Avant l'analyse, penses-tu que le matchmaking de Riot est biaisé ?{" "}
-              <span style={{ fontWeight: 400, color: C.mute }}>(optionnel — sert à mesurer le biais de sélection)</span>
-            </label>
-            <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-              {[["yes", "Oui"], ["no", "Non"], ["unsure", "Je ne sais pas"]].map(([val, lbl]) => (
-                <label key={val} style={{
-                  display: "flex", alignItems: "center", gap: 6,
-                  padding: "7px 14px", borderRadius: 7, cursor: "pointer",
-                  background: belief === val ? C.dim : C.paper,
-                  border: `1px solid ${belief === val ? C.mute : C.dim}`,
-                  fontSize: 13, color: C.text, userSelect: "none",
-                }}>
-                  <input type="radio" name="belief" value={val}
-                    checked={belief === val} onChange={() => setBelief(val)}
-                    style={{ margin: 0 }} />
-                  {lbl}
-                </label>
-              ))}
+          {/* === Zone de vérification === */}
+
+          {verifyStep === null && (
+            <>
+              {verifyMsg && (
+                <p style={{ fontSize: 13, color: C.rig, margin: 0 }}>{verifyMsg}</p>
+              )}
+              <button
+                type="button"
+                onClick={handleChallenge}
+                disabled={!riotId.trim() || !riotId.includes("#")}
+                style={{
+                  padding: "12px 0", width: "100%",
+                  background: (riotId.trim() && riotId.includes("#")) ? C.target : C.dim,
+                  color: C.ink, border: "none", borderRadius: 7,
+                  fontSize: 14, fontWeight: 700,
+                  cursor: (riotId.trim() && riotId.includes("#")) ? "pointer" : "not-allowed",
+                  transition: "background .12s",
+                }}
+              >
+                Vérifier mon compte →
+              </button>
+            </>
+          )}
+
+          {verifyStep === "loading" && (
+            <p style={{ fontSize: 13, color: C.mute, margin: 0 }}>Vérification du compte…</p>
+          )}
+
+          {(verifyStep === "pending" || verifyStep === "checking") && (
+            <div style={{
+              padding: "16px 20px", borderRadius: 8,
+              background: C.paper, border: `1px solid ${C.dim}`,
+              borderLeft: `3px solid ${C.target}`,
+            }}>
+              <p style={{ fontSize: 14, fontWeight: 600, color: C.text, margin: "0 0 8px" }}>
+                Change ton icône de profil
+              </p>
+              <p style={{ fontSize: 13, color: C.mute, margin: "0 0 14px", lineHeight: 1.6 }}>
+                Dans le client LoL, va dans <strong>Profil → icône</strong> et change ton icône
+                pour n'importe quelle autre — c'est la seule façon de prouver que ce compte
+                t'appartient. Tu peux remettre ton icône d'origine après.
+              </p>
+              {verifyMsg && (
+                <p style={{ fontSize: 12, color: C.rig, margin: "0 0 10px" }}>{verifyMsg}</p>
+              )}
+              <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                <button
+                  type="button"
+                  onClick={handleVerifyCheck}
+                  disabled={verifyStep === "checking"}
+                  style={{
+                    padding: "10px 20px",
+                    background: verifyStep === "checking" ? C.dim : C.target,
+                    color: C.ink, border: "none", borderRadius: 7,
+                    fontSize: 13, fontWeight: 700,
+                    cursor: verifyStep === "checking" ? "wait" : "pointer",
+                  }}
+                >
+                  {verifyStep === "checking" ? "Vérification…" : "J'ai changé mon icône — Vérifier"}
+                </button>
+                <button
+                  type="button"
+                  onClick={resetVerify}
+                  style={{
+                    padding: "10px 16px", background: "transparent",
+                    color: C.mute, border: `1px solid ${C.dim}`, borderRadius: 7,
+                    fontSize: 13, cursor: "pointer",
+                  }}
+                >
+                  Recommencer
+                </button>
+              </div>
             </div>
-          </div>
-
-          {/* Consentement */}
-          <label style={{
-            display: "flex", alignItems: "flex-start", gap: 10,
-            padding: "14px 16px", borderRadius: 8,
-            background: C.paper, border: `1px solid ${C.dim}`,
-            cursor: "pointer", fontSize: 13, color: C.mute, lineHeight: 1.6,
-          }}>
-            <input
-              type="checkbox"
-              checked={consent}
-              onChange={e => setConsent(e.target.checked)}
-              style={{ marginTop: 2, flexShrink: 0 }}
-            />
-            <span>
-              J'accepte que mes données de match publiques (historique de parties, rangs)
-              soient collectées via l'API Riot, analysées statistiquement et publiées sous
-              forme <strong>anonymisée</strong>. Les données brutes ne sont jamais partagées.
-            </span>
-          </label>
-
-          {/* Erreur */}
-          {status === "error" && (
-            <p style={{ fontSize: 13, color: C.rig, margin: 0 }}>{errorMsg || "Erreur inconnue."}</p>
-          )}
-          {status === "duplicate" && (
-            <p style={{ fontSize: 13, color: C.mute, margin: 0 }}>
-              Ce compte a déjà été soumis — il est dans la liste de collecte.
-            </p>
           )}
 
-          <button
-            type="submit"
-            disabled={!consent || status === "loading"}
-            style={{
-              padding: "12px 0", width: "100%",
-              background: consent ? C.target : C.dim,
-              color: C.ink, border: "none", borderRadius: 7,
-              fontSize: 14, fontWeight: 700,
-              cursor: consent ? "pointer" : "not-allowed",
-              transition: "background .12s",
-            }}
-          >
-            {status === "loading" ? "Envoi en cours…" : "Soumettre mon compte →"}
-          </button>
+          {verifyStep === "done" && (
+            <>
+              <div style={{
+                padding: "10px 14px", borderRadius: 7,
+                background: C.paper, border: `1px solid ${C.fair}`,
+                fontSize: 13, color: C.fair, display: "flex", alignItems: "center", gap: 8,
+              }}>
+                ✓ Compte vérifié — {riotId.trim()}
+              </div>
+
+              {/* Prior belief */}
+              <div>
+                <label style={{ fontSize: 13, fontWeight: 600, color: C.text, display: "block", marginBottom: 8 }}>
+                  Avant l'analyse, penses-tu que le matchmaking de Riot est biaisé ?{" "}
+                  <span style={{ fontWeight: 400, color: C.mute }}>(optionnel — sert à mesurer le biais de sélection)</span>
+                </label>
+                <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                  {[["yes", "Oui"], ["no", "Non"], ["unsure", "Je ne sais pas"]].map(([val, lbl]) => (
+                    <label key={val} style={{
+                      display: "flex", alignItems: "center", gap: 6,
+                      padding: "7px 14px", borderRadius: 7, cursor: "pointer",
+                      background: belief === val ? C.dim : C.paper,
+                      border: `1px solid ${belief === val ? C.mute : C.dim}`,
+                      fontSize: 13, color: C.text, userSelect: "none",
+                    }}>
+                      <input type="radio" name="belief" value={val}
+                        checked={belief === val} onChange={() => setBelief(val)}
+                        style={{ margin: 0 }} />
+                      {lbl}
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              {/* Consentement */}
+              <label style={{
+                display: "flex", alignItems: "flex-start", gap: 10,
+                padding: "14px 16px", borderRadius: 8,
+                background: C.paper, border: `1px solid ${C.dim}`,
+                cursor: "pointer", fontSize: 13, color: C.mute, lineHeight: 1.6,
+              }}>
+                <input
+                  type="checkbox"
+                  checked={consent}
+                  onChange={e => setConsent(e.target.checked)}
+                  style={{ marginTop: 2, flexShrink: 0 }}
+                />
+                <span>
+                  J'accepte que mes données de match publiques (historique de parties, rangs)
+                  soient collectées via l'API Riot, analysées statistiquement et publiées sous
+                  forme <strong>anonymisée</strong>. Les données brutes ne sont jamais partagées.
+                </span>
+              </label>
+
+              {status === "error" && (
+                <p style={{ fontSize: 13, color: C.rig, margin: 0 }}>{errorMsg || "Erreur inconnue."}</p>
+              )}
+              {status === "duplicate" && (
+                <p style={{ fontSize: 13, color: C.mute, margin: 0 }}>
+                  Ce compte a déjà été soumis — il est dans la liste de collecte.
+                </p>
+              )}
+
+              <button
+                type="submit"
+                disabled={!consent || status === "loading"}
+                style={{
+                  padding: "12px 0", width: "100%",
+                  background: consent ? C.target : C.dim,
+                  color: C.ink, border: "none", borderRadius: 7,
+                  fontSize: 14, fontWeight: 700,
+                  cursor: consent ? "pointer" : "not-allowed",
+                  transition: "background .12s",
+                }}
+              >
+                {status === "loading" ? "Envoi en cours…" : "Soumettre mon compte →"}
+              </button>
+            </>
+          )}
 
         </form>
       )}

@@ -39,11 +39,25 @@ LOOKBACK_D   = 60    # jours
 LOOKBACK_TS  = int(time.time()) - LOOKBACK_D * 86400
 GM_LP_CAP    = 1000  # Grandmaster : on exclut les joueurs > 1000 LP
 
-# Joueurs pilotes — à exclure (Riot IDs normalisés)
-PILOT_IDS = {
-    "kristal_uwu1", "san_ejetz", "vikingspt_euw", "weedymary_euw",
-    "seestern_7777", "tjelletmeister_euw", "cap1tancalzones_euw",
-}
+
+def _norm_id(riot_id: str) -> str:
+    """Normalise un Riot ID pour la déduplication : strip, minuscule, espaces supprimés."""
+    return riot_id.strip().lower().replace(" ", "")
+
+
+# Joueurs pilotes — à exclure du sampling confirmatoire (30 joueurs)
+PILOT_IDS = {_norm_id(r) for r in [
+    "Aguado#WET", "Akachem#0979", "Akaya die Papaya#1505",
+    "Charlie in Paris#EUW", "Coconut29#EUW", "DaDoOu#pgx",
+    "Dakawane#EUW", "DeGameHeer#EUW", "DerDickeMichi#94816",
+    "GeileSau29#EUW", "Jolas59#HBE", "L I N Y O S #EUW",
+    "Manga97#EUW", "Marchoc67#EUW", "RoyTommy#EUW",
+    "SAN eJetz シ#EUWw", "Sloopzz#EUW", "TjelletMeister#EUW",
+    "VikingsPT#EUW", "WeedyMary#EUW", "cap1tancalzones#EUW",
+    "joelbgfbf#EUW", "jolais22#EUW", "kristal#uwu1",
+    "malyla#EUW", "nowomannocry#EWU", "seestern#7777",
+    "sharia bombs#EUW", "valhrafn#EUW", "ダヱマム#Zyra",
+]}
 
 # ─── Key guard ────────────────────────────────────────────────────────────────
 
@@ -145,8 +159,7 @@ def sample_tier(tier, n_target, api_key, seen_puuids, extra_skip_ids=None):
             continue
 
         # Exclusion pilotes
-        name_norm = riot_id.split("#")[0].lower().replace(" ", "_")
-        if name_norm in PILOT_IDS:
+        if _norm_id(riot_id) in PILOT_IDS:
             print(f"    [skip pilote] {riot_id}")
             continue
 
@@ -236,7 +249,7 @@ def main():
                     help="lance collect.py sur chaque joueur listé dans --in")
     ap.add_argument("--in",  dest="infile", default="confirmatory_players.txt",
                     help="fichier d'entrée pour --collect")
-    ap.add_argument("--batch-out", default="batch_out",
+    ap.add_argument("--batch-out", default="batch_out_confirmatory",
                     help="dossier de sortie des CSV par joueur")
     ap.add_argument("--seed", type=int, default=2026,
                     help="seed aléatoire pour reproductibilité (pre-registration)")

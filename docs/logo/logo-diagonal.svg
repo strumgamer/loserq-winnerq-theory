@@ -1,0 +1,22 @@
+<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Loser Queue Winner Queue Theory logo">
+  <!-- palette : teal #1F6F6B, rouge #B23A2E, encre #1A1A22 -->
+  <!-- Concept : axe diagonal bas-gauche / haut-droite = signature spatiale
+       "deux camps opposés" d'une map MOBA, réduite à une abstraction pure.
+       Aucune lane / rivière / structure. Camp teal en bas-gauche, rouge en
+       haut-droite. La droite plate statistique traverse au centre. -->
+
+  <!-- camp teal : triangle ancré coin bas-gauche -->
+  <path d="M28 172 L128 172 L28 72 Z" fill="#1F6F6B" opacity="0.92"/>
+  <!-- camp rouge : triangle ancré coin haut-droite (miroir diagonal) -->
+  <path d="M172 28 L72 28 L172 128 Z" fill="#B23A2E" opacity="0.92"/>
+
+  <!-- diagonale de partage (l'axe de symétrie entre les deux camps) -->
+  <line x1="28" y1="172" x2="172" y2="28" stroke="#1A1A22" stroke-width="5"
+        stroke-linecap="round" stroke-dasharray="2 9"/>
+
+  <!-- droite plate statistique : pente nulle, élément signature du projet -->
+  <line x1="34" y1="100" x2="166" y2="100" stroke="#1A1A22" stroke-width="9" stroke-linecap="round"/>
+  <!-- deux marqueurs, un par camp -->
+  <circle cx="64"  cy="100" r="7" fill="#1F6F6B" stroke="#1A1A22" stroke-width="3"/>
+  <circle cx="136" cy="100" r="7" fill="#B23A2E" stroke="#1A1A22" stroke-width="3"/>
+</svg>
