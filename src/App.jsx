@@ -1142,9 +1142,10 @@ function NavBar() {
   const mobile = useIsMobile();
   const [logoOpen, setLogoOpen] = React.useState(false);
   const NAV = [
-    { to: "/",           label: mobile ? "Théorie"    : "La Théorie"  },
-    { to: "/simulateur", label: mobile ? "Simulateur" : "Simulateur"  },
-    { to: "/resultats",  label: mobile ? "Résultats"  : "Résultats"   },
+    { to: "/",            label: mobile ? "Théorie"    : "La Théorie"  },
+    { to: "/simulateur",  label: mobile ? "Simulateur" : "Simulateur"  },
+    { to: "/resultats",   label: mobile ? "Résultats"  : "Résultats"   },
+    { to: "/contribuer",  label: "Contribuer"                          },
   ];
   return (
     <>
@@ -1769,6 +1770,214 @@ function ResultatsPage() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// CONTRIBUER
+// ─────────────────────────────────────────────────────────────────────────────
+
+const CONTRIB_API = import.meta.env.VITE_API_URL ?? "http://localhost:8000";
+
+const CONTRIB_SERVERS = {
+  "euw1": { region: "europe",   platform: "euw1", label: "EUW — Europe Ouest"     },
+  "eun1": { region: "europe",   platform: "eun1", label: "EUNE — Europe Nord-Est"  },
+  "na1":  { region: "americas", platform: "na1",  label: "NA — Amérique du Nord"   },
+  "kr":   { region: "asia",     platform: "kr",   label: "KR — Corée"              },
+  "br1":  { region: "americas", platform: "br1",  label: "BR — Brésil"             },
+  "tr1":  { region: "europe",   platform: "tr1",  label: "TR — Turquie"            },
+};
+
+function ContribuerPage() {
+  const mobile = useIsMobile();
+  const [riotId,      setRiotId]      = useState("");
+  const [server,      setServer]      = useState("euw1");
+  const [belief,      setBelief]      = useState("unsure");
+  const [consent,     setConsent]     = useState(false);
+  const [status,      setStatus]      = useState(null); // null | "loading" | "ok" | "duplicate" | "error"
+  const [errorMsg,    setErrorMsg]    = useState("");
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    if (!consent) return;
+    setStatus("loading");
+    setErrorMsg("");
+    try {
+      const res = await fetch(`${CONTRIB_API}/api/contribute`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          riot_id:      riotId.trim(),
+          region:       CONTRIB_SERVERS[server].region,
+          platform:     CONTRIB_SERVERS[server].platform,
+          prior_belief: belief,
+          consent:      true,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setStatus("error");
+        setErrorMsg(data.detail || "Erreur serveur");
+      } else if (data.status === "already_submitted") {
+        setStatus("duplicate");
+      } else {
+        setStatus("ok");
+      }
+    } catch {
+      setStatus("error");
+      setErrorMsg("Impossible de contacter le serveur. Réessaie dans quelques minutes.");
+    }
+  }
+
+  return (
+    <div style={{ maxWidth: 600, margin: "0 auto", padding: mobile ? "32px 20px" : "48px 24px" }}>
+
+      <h1 style={{ fontSize: mobile ? 22 : 28, fontWeight: 800, margin: "0 0 8px", color: C.text }}>
+        Contribue à l'étude
+      </h1>
+      <p style={{ fontSize: 14, color: C.mute, lineHeight: 1.65, margin: "0 0 32px" }}>
+        L'étude teste si le matchmaking de Riot est biaisé — avec les vraies données de l'API,
+        pas des opinions. Le résultat peut être « rien de détectable », et c'est une conclusion
+        valide. En soumettant ton compte, tu ajoutes tes parties au corpus de recherche.
+      </p>
+
+      {status === "ok" ? (
+        <div style={{
+          padding: "24px 28px", borderRadius: 10,
+          background: C.paper, border: `1px solid ${C.dim}`,
+          borderLeft: `3px solid ${C.fair}`,
+        }}>
+          <p style={{ fontSize: 16, fontWeight: 700, color: C.fair, margin: "0 0 8px" }}>
+            Compte enregistré
+          </p>
+          <p style={{ fontSize: 14, color: C.mute, margin: 0, lineHeight: 1.6 }}>
+            Ton Riot ID a été ajouté à la liste de collecte. Tes données seront
+            intégrées au corpus lors du prochain batch de collecte, et publiées sous
+            forme anonymisée dans les résultats.
+          </p>
+        </div>
+      ) : (
+        <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 18 }}>
+
+          {/* Riot ID */}
+          <div>
+            <label style={{ fontSize: 13, fontWeight: 600, color: C.text, display: "block", marginBottom: 6 }}>
+              Riot ID
+            </label>
+            <input
+              type="text"
+              placeholder="Pseudo#EUW"
+              value={riotId}
+              onChange={e => setRiotId(e.target.value)}
+              required
+              style={{
+                width: "100%", boxSizing: "border-box",
+                padding: "10px 14px", borderRadius: 7, border: `1px solid ${C.dim}`,
+                background: C.paper, color: C.text, fontSize: 14,
+                fontFamily: MONO, outline: "none",
+              }}
+            />
+          </div>
+
+          {/* Serveur */}
+          <div>
+            <label style={{ fontSize: 13, fontWeight: 600, color: C.text, display: "block", marginBottom: 6 }}>
+              Serveur
+            </label>
+            <select
+              value={server}
+              onChange={e => setServer(e.target.value)}
+              style={{
+                width: "100%", boxSizing: "border-box",
+                padding: "10px 14px", borderRadius: 7, border: `1px solid ${C.dim}`,
+                background: C.paper, color: C.text, fontSize: 14,
+              }}
+            >
+              {Object.entries(CONTRIB_SERVERS).map(([key, { label }]) => (
+                <option key={key} value={key}>{label}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Prior belief — optionnel */}
+          <div>
+            <label style={{ fontSize: 13, fontWeight: 600, color: C.text, display: "block", marginBottom: 8 }}>
+              Avant l'analyse, penses-tu que le matchmaking de Riot est biaisé ?{" "}
+              <span style={{ fontWeight: 400, color: C.mute }}>(optionnel — sert à mesurer le biais de sélection)</span>
+            </label>
+            <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+              {[["yes", "Oui"], ["no", "Non"], ["unsure", "Je ne sais pas"]].map(([val, lbl]) => (
+                <label key={val} style={{
+                  display: "flex", alignItems: "center", gap: 6,
+                  padding: "7px 14px", borderRadius: 7, cursor: "pointer",
+                  background: belief === val ? C.dim : C.paper,
+                  border: `1px solid ${belief === val ? C.mute : C.dim}`,
+                  fontSize: 13, color: C.text, userSelect: "none",
+                }}>
+                  <input type="radio" name="belief" value={val}
+                    checked={belief === val} onChange={() => setBelief(val)}
+                    style={{ margin: 0 }} />
+                  {lbl}
+                </label>
+              ))}
+            </div>
+          </div>
+
+          {/* Consentement */}
+          <label style={{
+            display: "flex", alignItems: "flex-start", gap: 10,
+            padding: "14px 16px", borderRadius: 8,
+            background: C.paper, border: `1px solid ${C.dim}`,
+            cursor: "pointer", fontSize: 13, color: C.mute, lineHeight: 1.6,
+          }}>
+            <input
+              type="checkbox"
+              checked={consent}
+              onChange={e => setConsent(e.target.checked)}
+              style={{ marginTop: 2, flexShrink: 0 }}
+            />
+            <span>
+              J'accepte que mes données de match publiques (historique de parties, rangs)
+              soient collectées via l'API Riot, analysées statistiquement et publiées sous
+              forme <strong>anonymisée</strong>. Les données brutes ne sont jamais partagées.
+            </span>
+          </label>
+
+          {/* Erreur */}
+          {status === "error" && (
+            <p style={{ fontSize: 13, color: C.rig, margin: 0 }}>{errorMsg || "Erreur inconnue."}</p>
+          )}
+          {status === "duplicate" && (
+            <p style={{ fontSize: 13, color: C.mute, margin: 0 }}>
+              Ce compte a déjà été soumis — il est dans la liste de collecte.
+            </p>
+          )}
+
+          <button
+            type="submit"
+            disabled={!consent || status === "loading"}
+            style={{
+              padding: "12px 0", width: "100%",
+              background: consent ? C.target : C.dim,
+              color: C.ink, border: "none", borderRadius: 7,
+              fontSize: 14, fontWeight: 700,
+              cursor: consent ? "pointer" : "not-allowed",
+              transition: "background .12s",
+            }}
+          >
+            {status === "loading" ? "Envoi en cours…" : "Soumettre mon compte →"}
+          </button>
+
+        </form>
+      )}
+
+      {/* Note de confidentialité */}
+      <p style={{ fontSize: 11, color: C.mute, marginTop: 24, lineHeight: 1.55 }}>
+        Les données collectées sont les historiques de parties publics disponibles via l'API Riot.
+        Aucun pseudonyme n'apparaît dans les résultats publiés. Projet indépendant, sans affiliation avec Riot Games.
+      </p>
+
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // APP
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -1777,10 +1986,11 @@ export default function App() {
     <div style={{ minHeight: "100vh", background: C.ink, color: C.text, fontFamily: SANS }}>
       <NavBar />
       <Routes>
-        <Route path="/"           element={<TheoriePage />} />
-        <Route path="/simulateur" element={<SimulatorPage />} />
-        <Route path="/resultats"  element={<ResultatsPage />} />
-        <Route path="*"           element={<TheoriePage />} />
+        <Route path="/"            element={<TheoriePage />}    />
+        <Route path="/simulateur"  element={<SimulatorPage />}  />
+        <Route path="/resultats"   element={<ResultatsPage />}  />
+        <Route path="/contribuer"  element={<ContribuerPage />} />
+        <Route path="*"            element={<TheoriePage />}    />
       </Routes>
     </div>
   );

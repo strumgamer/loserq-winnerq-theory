@@ -1,5 +1,6 @@
 .env
 .env.local
+submissions.json
 .claude/
 games_*.csv
 riot_cache/

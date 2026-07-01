@@ -4,6 +4,9 @@
 
 import os
 import sys
+import json
+import hashlib
+import datetime
 
 # Allow imports from project root (collect.py, analyze.py, anonymize.py)
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
@@ -59,9 +62,18 @@ _PROJECT_ROOT = os.path.dirname(os.path.dirname(__file__))
 _CACHE_DIR = os.path.join(_PROJECT_ROOT, "riot_cache")
 _cache = Cache(_CACHE_DIR)
 
+# Submissions — éphémère sur Render (perdu au redéploiement), persistant en local.
+# Télécharger via GET /api/submissions?token=... avant tout déploiement.
+_SUBMISSIONS_FILE = os.path.join(_PROJECT_ROOT, "submissions.json")
+_ADMIN_TOKEN = os.environ.get("ADMIN_TOKEN", "")
+
 MAX_COUNT = 200
 
 _RIOT_ID_RE = _re.compile(r"^[^#]{1,50}#[A-Za-z0-9]{2,5}$")
+
+
+def _hash_ip(ip: str) -> str:
+    return hashlib.sha256(ip.encode()).hexdigest()[:16]
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -84,6 +96,36 @@ class AnalyzeRequest(BaseModel):
         if not _RIOT_ID_RE.match(normalized):
             raise ValueError("Format invalide")
         return normalized
+
+
+def _normalize_riot_id(v: str) -> str:
+    normalized = v.strip()
+    if "#" in normalized:
+        parts = normalized.split("#", 1)
+        normalized = parts[0].rstrip() + "#" + parts[1].lstrip()
+    if not _RIOT_ID_RE.match(normalized):
+        raise ValueError("Format invalide")
+    return normalized
+
+
+class ContributeRequest(BaseModel):
+    riot_id: str
+    region: str = "europe"
+    platform: str = "euw1"
+    consent: bool
+    prior_belief: str = "unsure"
+
+    @field_validator("riot_id")
+    @classmethod
+    def validate_riot_id_contrib(cls, v: str) -> str:
+        return _normalize_riot_id(v)
+
+    @field_validator("prior_belief")
+    @classmethod
+    def validate_belief(cls, v: str) -> str:
+        if v not in ("yes", "no", "unsure"):
+            raise ValueError("prior_belief doit être yes/no/unsure")
+        return v
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -140,6 +182,53 @@ def _api_key() -> str:
 def health():
     key_configured = bool(os.environ.get("RIOT_API_KEY", ""))
     return {"status": "ok", "key_configured": key_configured}
+
+
+@app.post("/api/contribute")
+@limiter.limit("5/hour")
+def contribute(req: ContributeRequest, request: Request):
+    if not req.consent:
+        raise HTTPException(status_code=400, detail="Consentement requis")
+
+    submissions = []
+    if os.path.exists(_SUBMISSIONS_FILE):
+        try:
+            with open(_SUBMISSIONS_FILE) as f:
+                submissions = json.load(f)
+        except (json.JSONDecodeError, IOError):
+            submissions = []
+
+    existing_ids = {s["riot_id"].lower() for s in submissions}
+    if req.riot_id.lower() in existing_ids:
+        return {"status": "already_submitted"}
+
+    submissions.append({
+        "riot_id":      req.riot_id,
+        "region":       req.region,
+        "platform":     req.platform,
+        "prior_belief": req.prior_belief,
+        "submitted_at": datetime.datetime.utcnow().isoformat() + "Z",
+        "ip_hash":      _hash_ip(get_remote_address(request)),
+    })
+
+    with open(_SUBMISSIONS_FILE, "w") as f:
+        json.dump(submissions, f, ensure_ascii=False, indent=2)
+
+    return {"status": "ok"}
+
+
+@app.get("/api/submissions")
+def get_submissions(token: str = ""):
+    if not _ADMIN_TOKEN or token != _ADMIN_TOKEN:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+
+    if not os.path.exists(_SUBMISSIONS_FILE):
+        return {"count": 0, "submissions": []}
+
+    with open(_SUBMISSIONS_FILE) as f:
+        data = json.load(f)
+
+    return {"count": len(data), "submissions": data}
 
 
 @app.post("/api/analyze")
