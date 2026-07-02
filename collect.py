@@ -303,8 +303,8 @@ def extract_row(match, my_puuid, platform, api_key, cache, champ_pool):
         m = sum(vals) / len(vals)
         return (sum((v - m) ** 2 for v in vals) / len(vals)) ** 0.5
 
-    ally_rank_dispersion  = round(_std(ally_scores),  1) if ally_scores  else None
-    enemy_rank_dispersion = round(_std(enemy_scores), 1) if enemy_scores else None
+    _s = _std(ally_scores);  ally_rank_dispersion  = round(_s, 1) if _s is not None else None
+    _s = _std(enemy_scores); enemy_rank_dispersion = round(_s, 1) if _s is not None else None
 
     # ── Deltas par duel de lane ──────────────────────────────────────────────
     def player_at(players, pos):

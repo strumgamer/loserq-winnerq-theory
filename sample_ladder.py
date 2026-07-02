@@ -342,9 +342,9 @@ def main():
         total = len(existing_ids) + len(all_players)
         print(f"  Total dans le fichier : {total} joueurs")
     print(f"\nÉtape suivante — collecte (résumable si interrompue) :")
-    print(f"  python3 sample_ladder.py --collect --in {outfile} --batch-out batch_out/")
+    print(f"  python3 sample_ladder.py --collect --in {outfile} --batch-out batch_out_confirmatory")
     print(f"\nPuis pipeline d'analyse :")
-    print(f"  python3 anonymize.py && python3 meta_analysis.py batch_out/")
+    print(f"  python3 anonymize.py && python3 meta_analysis.py batch_out_confirmatory/")
 
 
 if __name__ == "__main__":
